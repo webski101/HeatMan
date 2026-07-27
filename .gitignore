@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+node_modules/
+artifacts/
+dist/
+.next/
+.wrangler/
+*.tsbuildinfo
+.DS_Store

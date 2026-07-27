@@ -1,0 +1,765 @@
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+import {
+  BellRing,
+  Bike,
+  Bot,
+  ChevronRight,
+  CircleAlert,
+  Clock3,
+  Droplets,
+  Gauge,
+  MapPin,
+  Navigation,
+  PersonStanding,
+  RefreshCw,
+  Route,
+  ShieldCheck,
+  ThermometerSun,
+} from "lucide-react";
+import { HeatMap } from "./HeatMap";
+import {
+  createDemoAnalysis,
+  createDemoHeatPoints,
+  DEFAULT_DESTINATION,
+  DEFAULT_ORIGIN,
+  DEFAULT_PROFILE,
+} from "@/lib/demo-data";
+import { extractHeatPoints } from "@/lib/fortyguard";
+import {
+  buildBreakPlan,
+  chooseCoolestSafeRoute,
+  projectHeatPoints,
+  scoreRoute,
+} from "@/lib/thermal";
+import type {
+  HeatPoint,
+  RouteAnalysis,
+  RouteCandidate,
+  TravelMode,
+} from "@/lib/types";
+
+type AgentMessage = {
+  id: string;
+  role: "agent" | "rider";
+  text: string;
+  action?: string;
+};
+
+const INITIAL_AGENT_MESSAGE: AgentMessage = {
+  id: "agent-intro",
+  role: "agent",
+  text: "I compared three rider-safe paths against the current heat field. The cool corridor cuts cumulative heat load without a major delay.",
+  action: "Selected Cool corridor",
+};
+
+export function HeatGuardApp() {
+  const initialHeat = useMemo(() => createDemoHeatPoints(), []);
+  const [baseHeatPoints, setBaseHeatPoints] =
+    useState<HeatPoint[]>(initialHeat);
+  const [heatPoints, setHeatPoints] = useState<HeatPoint[]>(initialHeat);
+  const [forecastHours, setForecastHours] = useState(0);
+  const [mode, setMode] = useState<TravelMode>("cycling");
+  const [analysis, setAnalysis] = useState<RouteAnalysis>(() =>
+    createDemoAnalysis("cycling", initialHeat),
+  );
+  const [selectedRouteId, setSelectedRouteId] = useState(
+    analysis.recommendedRouteId,
+  );
+  const [routeState, setRouteState] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [heatState, setHeatState] = useState<
+    "demo" | "loading" | "live" | "error"
+  >("demo");
+  const [messages, setMessages] = useState<AgentMessage[]>([
+    INITIAL_AGENT_MESSAGE,
+  ]);
+  const [agentInput, setAgentInput] = useState("");
+  const [crewAlertArmed, setCrewAlertArmed] = useState(false);
+  const [plannerError, setPlannerError] = useState("");
+
+  const selectedRoute =
+    analysis.candidates.find((route) => route.id === selectedRouteId) ??
+    analysis.candidates[0];
+  const recommendedRoute =
+    analysis.candidates.find(
+      (route) => route.id === analysis.recommendedRouteId,
+    ) ?? selectedRoute;
+  const breakPlan = selectedRoute ? buildBreakPlan(selectedRoute) : [];
+  const fastestRoute = [...analysis.candidates].sort(
+    (a, b) => a.durationMinutes - b.durationMinutes,
+  )[0];
+  const timeDelta = selectedRoute && fastestRoute
+    ? selectedRoute.durationMinutes - fastestRoute.durationMinutes
+    : 0;
+  const loadReduction =
+    selectedRoute && fastestRoute && fastestRoute.heatLoad > 0
+      ? Math.max(
+          0,
+          Math.round(
+            ((fastestRoute.heatLoad - selectedRoute.heatLoad) /
+              fastestRoute.heatLoad) *
+              100,
+          ),
+        )
+      : 0;
+
+  async function calculateRoutes(nextMode = mode) {
+    setRouteState("loading");
+    setPlannerError("");
+    const startedAt = Date.now();
+    try {
+      const response = await fetch("/api/routes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          origin: DEFAULT_ORIGIN,
+          destination: DEFAULT_DESTINATION,
+          mode: nextMode,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message ?? "Route alternatives were unavailable.");
+      }
+
+      let nextAnalysis: RouteAnalysis;
+      if (payload.source === "mapbox" && Array.isArray(payload.routes)) {
+        const candidates = payload.routes.map(
+          (route: {
+            id: string;
+            name: string;
+            coordinates: [number, number][];
+            durationSeconds: number;
+            distanceMeters: number;
+            steps: RouteCandidate["steps"];
+          }) => scoreRoute(route, heatPoints, DEFAULT_PROFILE),
+        );
+        const recommended = chooseCoolestSafeRoute(candidates) ?? candidates[0];
+        nextAnalysis = {
+          candidates,
+          recommendedRouteId: recommended.id,
+          generatedAt: new Date().toISOString(),
+          dataMode: heatState === "live" ? "live" : "demo",
+        };
+      } else {
+        nextAnalysis = createDemoAnalysis(nextMode, heatPoints, DEFAULT_PROFILE);
+      }
+
+      const wait = Math.max(0, 320 - (Date.now() - startedAt));
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      setAnalysis(nextAnalysis);
+      setSelectedRouteId(nextAnalysis.recommendedRouteId);
+      setRouteState("success");
+      const recommendation = nextAnalysis.candidates.find(
+        (route) => route.id === nextAnalysis.recommendedRouteId,
+      );
+      if (recommendation) {
+        appendAgent(
+          `Route check complete. ${recommendation.name} is the safest option within the detour limit: ${recommendation.durationMinutes} minutes with a ${recommendation.maximumTemperatureC}°C peak.`,
+          `Selected ${recommendation.name}`,
+        );
+      }
+    } catch (error) {
+      setRouteState("error");
+      setPlannerError(
+        error instanceof Error
+          ? error.message
+          : "Routes could not be calculated. Try again.",
+      );
+    }
+  }
+
+  async function refreshHeat() {
+    setHeatState("loading");
+    try {
+      const dateTime = previousCompletedHourInMiami();
+      const response = await fetch("/api/fortyguard/heatmap", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          polygon_aoi: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { name: "HeatGuard Downtown Miami AOI" },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-80.201, 25.765],
+                      [-80.1805, 25.765],
+                      [-80.1805, 25.794],
+                      [-80.201, 25.794],
+                      [-80.201, 25.765],
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+          date_time: {
+            start_date: dateTime.date,
+            start_time: dateTime.time,
+            filter_type: 1,
+          },
+          granularity: 60,
+          analytic_type: "tcm",
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.error) {
+        throw new Error(
+          payload.message ?? "The FortyGuard heat request was rejected.",
+        );
+      }
+      if (payload.configured === false) {
+        setHeatState("demo");
+        appendAgent(
+          "FortyGuard credentials are not connected on this deployment. I kept the Miami simulation active and clearly labeled.",
+        );
+        return;
+      }
+
+      const activityId = payload?.data?.activity_id;
+      if (!activityId) {
+        throw new Error("FortyGuard returned no activity ID.");
+      }
+      const completed = await pollFortyGuard(activityId);
+      const livePoints = extractHeatPoints(
+        completed?.data?.result?.map_data ?? completed?.data?.result,
+      );
+      if (!livePoints.length) {
+        throw new Error(
+          "FortyGuard completed the request but returned no readable temperature tiles.",
+        );
+      }
+      setHeatPoints(livePoints);
+      setBaseHeatPoints(livePoints);
+      setForecastHours(0);
+      const rescored = analysis.candidates.map((route) =>
+        scoreRoute(
+          {
+            id: route.id,
+            name: route.name,
+            coordinates: route.coordinates,
+            durationSeconds: route.durationMinutes * 60,
+            distanceMeters: route.distanceKm * 1000,
+            steps: route.steps,
+          },
+          livePoints,
+          DEFAULT_PROFILE,
+        ),
+      );
+      const recommended = chooseCoolestSafeRoute(rescored) ?? rescored[0];
+      setAnalysis({
+        candidates: rescored,
+        recommendedRouteId: recommended.id,
+        generatedAt: new Date().toISOString(),
+        dataMode: "live",
+      });
+      setSelectedRouteId(recommended.id);
+      setHeatState("live");
+      appendAgent(
+        `FortyGuard live tiles are in. I rescored every route and selected ${recommended.name}.`,
+        "Live thermal route applied",
+      );
+    } catch (error) {
+      setHeatState("error");
+      appendAgent(
+        error instanceof Error
+          ? `${error.message} The last verified heat field remains on the map.`
+          : "The heat field could not be refreshed. The last verified field remains active.",
+      );
+    }
+  }
+
+  function changeMode(nextMode: TravelMode) {
+    setMode(nextMode);
+    void calculateRoutes(nextMode);
+  }
+
+  function changeForecast(hours: number) {
+    const projected = projectHeatPoints(baseHeatPoints, hours);
+    setForecastHours(hours);
+    setHeatPoints(projected);
+    const rescored = analysis.candidates.map((route) =>
+      scoreRoute(
+        {
+          id: route.id,
+          name: route.name,
+          coordinates: route.coordinates,
+          durationSeconds: route.durationMinutes * 60,
+          distanceMeters: route.distanceKm * 1000,
+          steps: route.steps,
+        },
+        projected,
+        DEFAULT_PROFILE,
+      ),
+    );
+    const recommended = chooseCoolestSafeRoute(rescored) ?? rescored[0];
+    setAnalysis((current) => ({
+      ...current,
+      candidates: rescored,
+      recommendedRouteId: recommended.id,
+      generatedAt: new Date().toISOString(),
+    }));
+    setSelectedRouteId(recommended.id);
+  }
+
+  function submitAgent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = agentInput.trim();
+    if (!query) return;
+    setMessages((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: "rider", text: query },
+    ]);
+    setAgentInput("");
+    window.setTimeout(() => runAgent(query), 180);
+  }
+
+  function runAgent(query: string) {
+    const normalized = query.toLowerCase();
+    if (normalized.includes("fast")) {
+      setSelectedRouteId(fastestRoute.id);
+      appendAgent(
+        `${fastestRoute.name} saves ${Math.max(0, timeDelta).toFixed(1)} minutes, but its heat load is ${fastestRoute.heatLoad}°C·min. I selected it—watch the exposure panel before starting.`,
+        `Selected ${fastestRoute.name}`,
+      );
+      return;
+    }
+    if (
+      normalized.includes("cool") ||
+      normalized.includes("safe") ||
+      normalized.includes("route")
+    ) {
+      setSelectedRouteId(recommendedRoute.id);
+      appendAgent(
+        `${recommendedRoute.name} is the coolest safe path within 40% of the fastest travel time. It reduces modeled heat load by ${loadReduction}% versus the fastest alternative.`,
+        `Selected ${recommendedRoute.name}`,
+      );
+      return;
+    }
+    if (
+      normalized.includes("water") ||
+      normalized.includes("hydrate") ||
+      normalized.includes("break")
+    ) {
+      const firstBreak = breakPlan[0];
+      appendAgent(
+        firstBreak
+          ? `Take ${firstBreak.amountMl} mL at minute ${firstBreak.atMinute}. ${firstBreak.instruction}`
+          : "This leg is short enough to finish without a scheduled stop. Drink 250 mL before departure and reassess at the drop-off.",
+        firstBreak ? "Break added to route" : "Hydration check set",
+      );
+      return;
+    }
+    if (
+      normalized.includes("alert") ||
+      normalized.includes("crew") ||
+      normalized.includes("dispatch")
+    ) {
+      setCrewAlertArmed(true);
+      appendAgent(
+        "Dispatch heat alerts are armed for this shift. The demo will flag routes at high risk or above 36°C peak exposure.",
+        "Shift alert armed",
+      );
+      return;
+    }
+    if (normalized.includes("walk")) {
+      changeMode("walking");
+      appendAgent(
+        "I switched to walking and started a fresh thermal route comparison.",
+        "Walking mode enabled",
+      );
+      return;
+    }
+    appendAgent(
+      `Current route: ${selectedRoute.name}, ${selectedRoute.durationMinutes} minutes, ${selectedRoute.averageTemperatureC}°C average, risk ${selectedRoute.riskScore}/100. Ask me for the coolest route, fastest route, a hydration break, or a dispatch alert.`,
+    );
+  }
+
+  function appendAgent(text: string, action?: string) {
+    setMessages((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: "agent", text, action },
+    ]);
+  }
+
+  return (
+    <div className="heatguard-shell">
+      <header className="topbar">
+        <a href="#workspace" className="wordmark" aria-label="HeatGuard home">
+          <span className="wordmark__mark" aria-hidden="true">HG</span>
+          <span>HeatGuard</span>
+        </a>
+        <div className="topbar__status">
+          <span
+            className={`source-chip source-chip--${heatState}`}
+            aria-live="polite"
+          >
+            <span className="source-chip__dot" aria-hidden="true" />
+            {heatState === "live"
+              ? "FORTYGUARD LIVE"
+              : heatState === "loading"
+                ? "FETCHING HEAT"
+                : heatState === "error"
+                  ? "LAST FIELD"
+                  : "MIAMI SIMULATION"}
+          </span>
+          <button
+            className="icon-action"
+            type="button"
+            onClick={() => void refreshHeat()}
+            disabled={heatState === "loading"}
+            aria-label="Refresh FortyGuard heat data"
+            data-state={heatState === "loading" ? "loading" : "default"}
+          >
+            <RefreshCw aria-hidden="true" size={17} />
+          </button>
+        </div>
+      </header>
+
+      {(selectedRoute.riskBand === "high" ||
+        selectedRoute.riskBand === "critical") && (
+        <aside className="safety-banner" role="alert">
+          <CircleAlert aria-hidden="true" size={18} />
+          <span>
+            Heat exposure is {selectedRoute.riskBand}. Stop for confusion,
+            faintness, or unusual weakness.
+          </span>
+          <button type="button" onClick={() => setCrewAlertArmed(true)}>
+            Alert dispatch
+          </button>
+        </aside>
+      )}
+
+      <main id="workspace" className="workspace">
+        <aside className="planner-panel">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">ACTIVE DELIVERY</span>
+              <h1>Route the heat, not just the miles.</h1>
+            </div>
+            <span className="delivery-id">D-204</span>
+          </div>
+
+          <div className="mode-switch" aria-label="Travel mode">
+            <button
+              type="button"
+              className={mode === "cycling" ? "is-active" : ""}
+              aria-pressed={mode === "cycling"}
+              onClick={() => changeMode("cycling")}
+            >
+              <Bike aria-hidden="true" size={17} />
+              Cycle
+            </button>
+            <button
+              type="button"
+              className={mode === "walking" ? "is-active" : ""}
+              aria-pressed={mode === "walking"}
+              onClick={() => changeMode("walking")}
+            >
+              <PersonStanding aria-hidden="true" size={17} />
+              Walk
+            </button>
+          </div>
+
+          <div className="stop-list">
+            <div className="stop-list__rail" aria-hidden="true">
+              <span />
+              <span />
+            </div>
+            <label>
+              <span>Pickup</span>
+              <input
+                value="Brickell dispatch hub"
+                readOnly
+                aria-label="Pickup address"
+              />
+            </label>
+            <label>
+              <span>Drop-off</span>
+              <input
+                value="Omni / NE 20th Street"
+                readOnly
+                aria-label="Drop-off address"
+              />
+            </label>
+          </div>
+
+          <button
+            className="primary-action"
+            type="button"
+            onClick={() => void calculateRoutes()}
+            disabled={routeState === "loading"}
+            data-state={routeState}
+          >
+            {routeState === "loading" ? (
+              <>
+                <span className="spinner" aria-hidden="true" />
+                Scoring routes
+              </>
+            ) : routeState === "error" ? (
+              <>
+                <CircleAlert aria-hidden="true" size={17} />
+                Try route check
+              </>
+            ) : (
+              <>
+                <Navigation aria-hidden="true" size={17} />
+                Compare thermal routes
+              </>
+            )}
+          </button>
+          <p
+            className={plannerError ? "field-message is-error" : "field-message"}
+            aria-live="polite"
+          >
+            {plannerError ||
+              "Alternatives are scored by cumulative temperature exposure."}
+          </p>
+
+          <section className="route-list" aria-label="Route alternatives">
+            <div className="route-list__heading">
+              <h2>Route alternatives</h2>
+              <span>{analysis.candidates.length} scored</span>
+            </div>
+            {analysis.candidates.map((route) => (
+              <button
+                key={route.id}
+                type="button"
+                className={
+                  route.id === selectedRouteId
+                    ? "route-option is-selected"
+                    : "route-option"
+                }
+                onClick={() => setSelectedRouteId(route.id)}
+                aria-pressed={route.id === selectedRouteId}
+              >
+                <span className="route-option__main">
+                  <span>
+                    {route.name}
+                    {route.id === analysis.recommendedRouteId && (
+                      <small>RECOMMENDED</small>
+                    )}
+                  </span>
+                  <strong>{route.durationMinutes} min</strong>
+                </span>
+                <span className="route-option__meta">
+                  <span>{route.averageTemperatureC}°C avg</span>
+                  <span>{route.heatLoad}°C·min load</span>
+                  <ChevronRight aria-hidden="true" size={15} />
+                </span>
+              </button>
+            ))}
+          </section>
+        </aside>
+
+        <HeatMap
+          routes={analysis.candidates}
+          selectedRouteId={selectedRouteId}
+          heatPoints={heatPoints}
+          onSelectRoute={setSelectedRouteId}
+          forecastHours={forecastHours}
+          onForecastChange={changeForecast}
+        />
+
+        <aside className="risk-panel">
+          <section className="risk-score">
+            <div className="risk-score__head">
+              <span>RIDER RISK</span>
+              <span className={`risk-band risk-band--${selectedRoute.riskBand}`}>
+                {selectedRoute.riskBand}
+              </span>
+            </div>
+            <div className="risk-score__value">
+              <strong>{selectedRoute.riskScore}</strong>
+              <span>/100</span>
+            </div>
+            <div
+              className="risk-meter"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={selectedRoute.riskScore}
+              aria-label="Modeled rider heat risk"
+            >
+              <span style={{ "--risk": selectedRoute.riskScore } as React.CSSProperties} />
+            </div>
+            <p>
+              Modeled from route temperature, time exposed, carried load, shift
+              duration, acclimatization, and hydration.
+            </p>
+          </section>
+
+          <section className="metric-grid" aria-label="Route heat metrics">
+            <article>
+              <ThermometerSun aria-hidden="true" size={17} />
+              <span>Peak</span>
+              <strong>{selectedRoute.maximumTemperatureC}°C</strong>
+            </article>
+            <article>
+              <Clock3 aria-hidden="true" size={17} />
+              <span>Hot exposure</span>
+              <strong>{selectedRoute.hotMinutes} min</strong>
+            </article>
+            <article>
+              <Gauge aria-hidden="true" size={17} />
+              <span>Heat load</span>
+              <strong>{selectedRoute.heatLoad}°C·min</strong>
+            </article>
+            <article>
+              <Droplets aria-hidden="true" size={17} />
+              <span>Water target</span>
+              <strong>{breakPlan[0]?.amountMl ?? 250} mL</strong>
+            </article>
+          </section>
+
+          <section className="impact-strip">
+            <ShieldCheck aria-hidden="true" size={20} />
+            <div>
+              <strong>{loadReduction}% less heat load</strong>
+              <span>
+                {timeDelta > 0
+                  ? `for ${timeDelta.toFixed(1)} extra minutes`
+                  : "with no added travel time"}
+              </span>
+            </div>
+          </section>
+
+          <section className="break-plan">
+            <div className="section-line">
+              <h2>Protection plan</h2>
+              <span>{breakPlan.length || 1} action</span>
+            </div>
+            {breakPlan.length ? (
+              breakPlan.map((item) => (
+                <article key={`${item.atMinute}-${item.title}`}>
+                  <span className="break-plan__time">MIN {item.atMinute}</span>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.instruction}</p>
+                    <span>{item.amountMl} mL water</span>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <article>
+                <span className="break-plan__time">START</span>
+                <div>
+                  <strong>Pre-hydrate</strong>
+                  <p>Drink before departure and reassess at the drop-off.</p>
+                  <span>250 mL water</span>
+                </div>
+              </article>
+            )}
+          </section>
+
+          <button
+            className={
+              crewAlertArmed ? "alert-toggle is-success" : "alert-toggle"
+            }
+            type="button"
+            onClick={() => setCrewAlertArmed((current) => !current)}
+            aria-pressed={crewAlertArmed}
+          >
+            <BellRing aria-hidden="true" size={17} />
+            {crewAlertArmed ? "Dispatch alert armed" : "Arm dispatch alert"}
+          </button>
+        </aside>
+      </main>
+
+      <section className="agent-dock" aria-label="HeatGuard agent">
+        <div className="agent-dock__identity">
+          <span className="agent-avatar" aria-hidden="true">
+            <Bot size={18} />
+          </span>
+          <div>
+            <strong>HeatGuard agent</strong>
+            <span>Route · risk · recovery</span>
+          </div>
+        </div>
+        <div className="agent-thread" aria-live="polite">
+          {messages.slice(-2).map((message) => (
+            <div
+              key={message.id}
+              className={`agent-message agent-message--${message.role}`}
+            >
+              <p>{message.text}</p>
+              {message.action && <span>{message.action}</span>}
+            </div>
+          ))}
+        </div>
+        <form className="agent-form" onSubmit={submitAgent}>
+          <label htmlFor="agent-query">Ask the route agent</label>
+          <div>
+            <input
+              id="agent-query"
+              value={agentInput}
+              onChange={(event) => setAgentInput(event.target.value)}
+              placeholder="e.g. Add a water break"
+            />
+            <button type="submit" disabled={!agentInput.trim()}>
+              <Route aria-hidden="true" size={17} />
+              Run
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <footer className="status-footer">
+        <p>
+          <span>HeatGuard MVP</span>
+          <span>Miami · rider D-204</span>
+          <span>Thermal score is decision support—not medical advice.</span>
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+async function pollFortyGuard(activityId: string) {
+  const deadline = Date.now() + 180_000;
+  while (Date.now() < deadline) {
+    const response = await fetch(
+      `/api/fortyguard/status/${encodeURIComponent(activityId)}`,
+      { cache: "no-store" },
+    );
+    const payload = await response.json();
+    if (!response.ok || payload.error) {
+      throw new Error(payload.message ?? "FortyGuard status check failed.");
+    }
+    const status = String(payload?.data?.status ?? payload?.message ?? "");
+    if (status.toLowerCase() === "completed") return payload;
+    if (status.toLowerCase() === "failed") {
+      throw new Error("FortyGuard could not complete the heatmap activity.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
+  throw new Error("FortyGuard did not complete within three minutes.");
+}
+
+function previousCompletedHourInMiami(now = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(now.getTime() - 60 * 60 * 1000))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:00`,
+  };
+}
