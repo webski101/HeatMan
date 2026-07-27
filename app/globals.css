@@ -90,7 +90,7 @@ a {
   white-space: nowrap;
 }
 
-.heatguard-shell {
+.heatman-shell {
   min-height: 100dvh;
   background: var(--color-paper);
 }

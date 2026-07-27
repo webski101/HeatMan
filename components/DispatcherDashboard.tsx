@@ -2,7 +2,7 @@
 
 /*
 THESIS: Fleet heat risk becomes a live dispatch queue, not a passive weather layer.
-OWN-WORLD: Inherit HeatGuard's cobalt workbench, ruled panels, compact data labels,
+OWN-WORLD: Inherit HeatMan's cobalt workbench, ruled panels, compact data labels,
 and street-map field with semantic risk colors.
 STORY: See who is exposed, understand why, intervene, then verify the fleet result.
 FIRST VIEWPORT: Fleet roster left, shared Miami map center, selected-rider action
@@ -172,7 +172,7 @@ export function DispatcherDashboard({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "heatguard-miami-fleet-exposure.csv";
+    link.download = "heatman-miami-fleet-exposure.csv";
     link.click();
     URL.revokeObjectURL(url);
     addActivity("Daily fleet exposure report exported");

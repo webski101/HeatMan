@@ -1,6 +1,5 @@
-import { HeatGuardApp } from "@/components/HeatGuardApp";
+import { HeatManApp } from "@/components/HeatManApp";
 
 export default function Home() {
-  return <HeatGuardApp />;
+  return <HeatManApp />;
 }
-

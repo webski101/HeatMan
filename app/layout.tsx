@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-const title = "HeatGuard — Cooler routes for everyday life";
+const title = "HeatMan — Cooler routes for everyday life";
 const description =
   "Plan cooler everyday trips with hyperlocal heat-aware routes, safer departure times, and personal protection guidance.";
 

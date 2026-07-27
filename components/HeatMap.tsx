@@ -99,14 +99,14 @@ export function HeatMap({
 
       map.on("load", () => {
         if (cancelled) return;
-        map.addSource("heatguard-heat", {
+        map.addSource("heatman-heat", {
           type: "geojson",
           data: initialHeatGeoJson.current,
         });
         map.addLayer({
-          id: "heatguard-heat",
+          id: "heatman-heat",
           type: "heatmap",
-          source: "heatguard-heat",
+          source: "heatman-heat",
           paint: {
             "heatmap-weight": ["get", "weight"],
             "heatmap-intensity": 0.9,
@@ -127,14 +127,14 @@ export function HeatMap({
             ],
           },
         });
-        map.addSource("heatguard-routes", {
+        map.addSource("heatman-routes", {
           type: "geojson",
           data: initialRouteGeoJson.current,
         });
         map.addLayer({
-          id: "heatguard-routes",
+          id: "heatman-routes",
           type: "line",
-          source: "heatguard-routes",
+          source: "heatman-routes",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: {
             "line-color": ["case", ["get", "selected"], accent, rule],
@@ -142,14 +142,14 @@ export function HeatMap({
             "line-opacity": ["case", ["get", "selected"], 1, 0.72],
           },
         });
-        map.on("click", "heatguard-routes", (event) => {
+        map.on("click", "heatman-routes", (event) => {
           const routeId = event.features?.[0]?.properties?.id;
           if (typeof routeId === "string") selectRouteRef.current(routeId);
         });
-        map.on("mouseenter", "heatguard-routes", () => {
+        map.on("mouseenter", "heatman-routes", () => {
           map.getCanvas().style.cursor = "pointer";
         });
-        map.on("mouseleave", "heatguard-routes", () => {
+        map.on("mouseleave", "heatman-routes", () => {
           map.getCanvas().style.cursor = "";
         });
         setMapReady(true);
@@ -167,10 +167,10 @@ export function HeatMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map) return;
-    const routesSource = map.getSource("heatguard-routes") as
+    const routesSource = map.getSource("heatman-routes") as
       | mapboxgl.GeoJSONSource
       | undefined;
-    const heatSource = map.getSource("heatguard-heat") as
+    const heatSource = map.getSource("heatman-heat") as
       | mapboxgl.GeoJSONSource
       | undefined;
     routesSource?.setData(routeGeoJson);

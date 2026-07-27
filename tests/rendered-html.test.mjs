@@ -23,13 +23,13 @@ async function render(pathname = "/") {
   );
 }
 
-test("server-renders the HeatGuard Personal trip planner", async () => {
+test("server-renders the HeatMan Personal trip planner", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>HeatGuard/);
+  assert.match(html, /<title>HeatMan/);
   assert.match(html, /Plan around the heat\./);
   assert.match(html, /Plan for me/);
   assert.match(html, /Heat-sensitive/);
@@ -57,7 +57,7 @@ test("keeps secrets server-side, preserves Teams, and ships the Hallmark system"
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
     readFile(new URL("../tokens.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readFile(new URL("../components/HeatGuardApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/HeatManApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/DispatcherDashboard.tsx", import.meta.url), "utf8"),
   ]);
 
@@ -68,7 +68,7 @@ test("keeps secrets server-side, preserves Teams, and ships the Hallmark system"
   assert.match(tokens, /--color-accent:/);
   assert.match(packageJson, /"build": "vinext build"/);
   assert.match(appSource, /Personal/);
-  assert.match(appSource, /HeatGuard agent/);
+  assert.match(appSource, /HeatMan agent/);
   assert.match(teamsSource, /Fleet heat command center/);
   assert.match(teamsSource, /Daily fleet exposure/);
   assert.doesNotMatch(exampleEnv, /api-key:\s*[A-Za-z0-9]/i);

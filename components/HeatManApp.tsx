@@ -1,7 +1,7 @@
 "use client";
 
 /*
-THESIS: HeatGuard starts with a normal outdoor trip and makes invisible street
+THESIS: HeatMan starts with a normal outdoor trip and makes invisible street
 heat actionable; it refuses weather-app city averages.
 OWN-WORLD: Preserve the cobalt operations workbench, ruled panels, thermal map,
 compact measurements, and direct safety language.
@@ -77,7 +77,7 @@ const INITIAL_AGENT_MESSAGE: AgentMessage = {
   action: "Selected Cool corridor",
 };
 
-export function HeatGuardApp() {
+export function HeatManApp() {
   const [surface, setSurface] = useState<"personal" | "teams">("personal");
   const initialHeat = useMemo(() => createDemoHeatPoints(), []);
   const [baseHeatPoints, setBaseHeatPoints] =
@@ -276,7 +276,7 @@ export function HeatGuardApp() {
             features: [
               {
                 type: "Feature",
-                properties: { name: "HeatGuard Downtown Miami AOI" },
+                properties: { name: "HeatMan Downtown Miami AOI" },
                 geometry: {
                   type: "Polygon",
                   coordinates: [
@@ -521,17 +521,17 @@ export function HeatGuardApp() {
   }
 
   return (
-    <div className="heatguard-shell">
+    <div className="heatman-shell">
       <header className="topbar">
         <a
           href={surface === "teams" ? "#command-center" : "#workspace"}
           className="wordmark"
-          aria-label="HeatGuard home"
+          aria-label="HeatMan home"
         >
-          <span className="wordmark__mark" aria-hidden="true">HG</span>
-          <span>HeatGuard</span>
+          <span className="wordmark__mark" aria-hidden="true">HM</span>
+          <span>HeatMan</span>
         </a>
-        <nav className="product-switch" aria-label="HeatGuard workspace">
+        <nav className="product-switch" aria-label="HeatMan workspace">
           <button
             type="button"
             className={surface === "personal" ? "is-active" : ""}
@@ -905,13 +905,13 @@ export function HeatGuardApp() {
         </aside>
       </main>
 
-      <section className="agent-dock" aria-label="HeatGuard agent">
+      <section className="agent-dock" aria-label="HeatMan agent">
         <div className="agent-dock__identity">
           <span className="agent-avatar" aria-hidden="true">
             <Bot size={18} />
           </span>
           <div>
-            <strong>HeatGuard agent</strong>
+            <strong>HeatMan agent</strong>
             <span>Route · timing · protection</span>
           </div>
         </div>
@@ -947,7 +947,7 @@ export function HeatGuardApp() {
 
       <footer className="status-footer">
         <p>
-          <span>HeatGuard MVP</span>
+          <span>HeatMan MVP</span>
           <span>
             Miami · {surface === "teams" ? "Teams operations" : "Personal trip"}
           </span>
@@ -1015,7 +1015,7 @@ async function geocodeLocation(query: string): Promise<GeocodeResult> {
   const payload = await response.json();
   if (!response.ok || payload.error) {
     throw new Error(
-      payload.message ?? `HeatGuard could not find “${query.trim()}”.`,
+      payload.message ?? `HeatMan could not find “${query.trim()}”.`,
     );
   }
   if (payload.configured === false) return { configured: false };
@@ -1026,7 +1026,7 @@ async function geocodeLocation(query: string): Promise<GeocodeResult> {
       (value: unknown) => typeof value === "number" && Number.isFinite(value),
     )
   ) {
-    throw new Error(`HeatGuard could not find “${query.trim()}”.`);
+    throw new Error(`HeatMan could not find “${query.trim()}”.`);
   }
   return {
     configured: true,

@@ -8,7 +8,7 @@ export async function POST(request: Request) {
         configured: false,
         source: "demo",
         message:
-          "FortyGuard is not configured. HeatGuard is using a labeled Miami simulation.",
+          "FortyGuard is not configured. HeatMan is using a labeled Miami simulation.",
       },
       { status: 200 },
     );
@@ -35,4 +35,3 @@ export async function POST(request: Request) {
     },
   });
 }
-

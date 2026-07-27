@@ -16,7 +16,7 @@ when heat risk rises.
 
 ## Product Purpose
 
-HeatGuard turns street-level temperature intelligence into practical routing and
+HeatMan turns street-level temperature intelligence into practical routing and
 heat-safety decisions. Everyday users get cooler route options, safer departure
 times, exposure estimates, and hydration or rest guidance. Teams get a
 fleet-wide operating view and can alert, reroute, or reschedule riders.
@@ -24,13 +24,13 @@ fleet-wide operating view and can alert, reroute, or reschedule riders.
 ## Positioning
 
 Unlike weather and routing products that treat a city as one temperature field,
-HeatGuard scores candidate routes against FortyGuard's 2-meter temperature data
+HeatMan scores candidate routes against FortyGuard's 2-meter temperature data
 and cumulative exposure.
 
 ## Operating Context
 
 The flagship journey starts with a person choosing an everyday destination and
-travel mode. HeatGuard compares Mapbox alternatives, selects the coolest safe
+travel mode. HeatMan compares Mapbox alternatives, selects the coolest safe
 path, estimates cumulative exposure, compares departure times, and recommends
 hydration or rest breaks. The Teams view monitors multiple active riders on one
 Miami map.
@@ -51,7 +51,7 @@ Miami map.
 
 ## Brand Commitments
 
-The product name is HeatGuard. The interface is a practical operations
+The product name is HeatMan. The interface is a practical operations
 workbench: direct, calm, and specific about risk without using alarmist copy.
 
 ## Evidence on Hand

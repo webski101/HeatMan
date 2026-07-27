@@ -1,9 +1,10 @@
-# HeatGuard Agent
+# HeatMan
 
-HeatGuard is a heat-aware delivery workbench for Miami riders. It compares
-Mapbox walking/cycling alternatives against FortyGuard temperature tiles,
-scores cumulative exposure, selects the coolest safe route, and turns the
-result into concrete hydration, rest, and dispatch actions.
+HeatMan is a heat-aware navigation and safety system for everyday outdoor trips
+and outdoor teams in Miami. It compares Mapbox walking/cycling alternatives
+against FortyGuard temperature tiles, scores cumulative exposure, selects the
+coolest safe route, and turns the result into concrete hydration, rest, timing,
+alert, and dispatch actions.
 
 The app remains fully interactive without credentials by using a clearly
 labeled Miami simulation. Adding API keys switches routing and heat retrieval
@@ -14,10 +15,10 @@ to the live providers.
 - Mapbox multi-route cycling and walking alternatives
 - FortyGuard asynchronous heatmap submission and result polling
 - Thermal-cost route scoring in °C·min
-- Rider risk model using exposure, load, shift duration, hydration, and
+- Personal risk model using exposure, heat sensitivity, hydration, and
   acclimatization
 - Cool-route recommendation with a bounded detour
-- Hydration/rest plan and dispatch heat-alert control
+- Hydration/rest plan, personal heat alerts, and Teams dispatch controls
 - Natural-language route agent that takes actions
 - Current, +1 hour, and +3 hour micro-hotspot projections
 - Cooling-stop recommendations

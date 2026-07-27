@@ -6,7 +6,7 @@ export async function GET(request: Request) {
     return Response.json({
       configured: false,
       message:
-        "Mapbox address search is not configured. HeatGuard will keep the Miami sample route active.",
+        "Mapbox address search is not configured. HeatMan will keep the Miami sample route active.",
     });
   }
 
