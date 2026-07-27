@@ -23,29 +23,42 @@ async function render(pathname = "/") {
   );
 }
 
-test("server-renders the HeatGuard fleet command center", async () => {
+test("server-renders the HeatGuard Personal trip planner", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<title>HeatGuard/);
-  assert.match(html, /Fleet heat command center/);
-  assert.match(html, /Live Miami fleet heat map/);
-  assert.match(html, /Rider risk queue/);
-  assert.match(html, /Send cooler route/);
-  assert.match(html, /Daily fleet exposure/);
+  assert.match(html, /Plan around the heat\./);
+  assert.match(html, /Plan for me/);
+  assert.match(html, /Heat-sensitive/);
+  assert.match(html, /Find my coolest route/);
+  assert.match(html, /YOUR TRIP RISK/);
+  assert.match(html, /Best time to leave/);
+  assert.match(html, /Turn on trip heat alerts/);
+  assert.match(html, /Miami thermal route map/);
   assert.match(html, /MIAMI SIMULATION/);
+  assert.doesNotMatch(html, /aria-label="Starting location"[^>]*readonly/);
   assert.doesNotMatch(html, /codex-preview|Starter Project|react-loading-skeleton/);
 });
 
-test("keeps secrets server-side, preserves rider mode, and ships the Hallmark system", async () => {
-  const [gitignore, exampleEnv, tokens, packageJson, appSource] = await Promise.all([
+test("keeps address search honest when Mapbox is not configured", async () => {
+  const response = await render("/api/geocode?q=100%20Biscayne%20Blvd");
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.configured, false);
+  assert.match(payload.message, /sample route/i);
+});
+
+test("keeps secrets server-side, preserves Teams, and ships the Hallmark system", async () => {
+  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource] = await Promise.all([
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
     readFile(new URL("../tokens.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../components/HeatGuardApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/DispatcherDashboard.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(gitignore, /\.env\.\*/);
@@ -54,7 +67,9 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(tokens, /Hallmark · macrostructure: Workbench/);
   assert.match(tokens, /--color-accent:/);
   assert.match(packageJson, /"build": "vinext build"/);
-  assert.match(appSource, /Route the heat, not just the miles\./);
+  assert.match(appSource, /Personal/);
   assert.match(appSource, /HeatGuard agent/);
+  assert.match(teamsSource, /Fleet heat command center/);
+  assert.match(teamsSource, /Daily fleet exposure/);
   assert.doesNotMatch(exampleEnv, /api-key:\s*[A-Za-z0-9]/i);
 });

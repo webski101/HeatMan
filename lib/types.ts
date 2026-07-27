@@ -36,6 +36,7 @@ export interface RiderProfile {
   carryingLoadKg: number;
   shiftMinutesCompleted: number;
   hydrationMl: number;
+  heatSensitivity?: "standard" | "elevated";
 }
 
 export interface RouteAnalysis {
@@ -44,4 +45,3 @@ export interface RouteAnalysis {
   generatedAt: string;
   dataMode: "demo" | "live";
 }
-
