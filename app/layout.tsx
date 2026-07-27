@@ -3,9 +3,9 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-const title = "HeatGuard — Cool-route intelligence for delivery riders";
+const title = "HeatGuard — Fleet heat safety for delivery operations";
 const description =
-  "A hyperlocal heat navigation and exposure-mitigation workbench powered by FortyGuard temperature intelligence.";
+  "A hyperlocal fleet heat command center and rider navigation workbench powered by FortyGuard temperature intelligence.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();

@@ -10,7 +10,7 @@ import {
   Clock3,
   Droplets,
   Gauge,
-  MapPin,
+  LayoutDashboard,
   Navigation,
   PersonStanding,
   RefreshCw,
@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   ThermometerSun,
 } from "lucide-react";
+import { DispatcherDashboard } from "./DispatcherDashboard";
 import { HeatMap } from "./HeatMap";
 import {
   createDemoAnalysis,
@@ -55,6 +56,7 @@ const INITIAL_AGENT_MESSAGE: AgentMessage = {
 };
 
 export function HeatGuardApp() {
+  const [surface, setSurface] = useState<"dispatch" | "rider">("dispatch");
   const initialHeat = useMemo(() => createDemoHeatPoints(), []);
   const [baseHeatPoints, setBaseHeatPoints] =
     useState<HeatPoint[]>(initialHeat);
@@ -109,7 +111,6 @@ export function HeatGuardApp() {
   async function calculateRoutes(nextMode = mode) {
     setRouteState("loading");
     setPlannerError("");
-    const startedAt = Date.now();
     try {
       const response = await fetch("/api/routes", {
         method: "POST",
@@ -148,8 +149,6 @@ export function HeatGuardApp() {
         nextAnalysis = createDemoAnalysis(nextMode, heatPoints, DEFAULT_PROFILE);
       }
 
-      const wait = Math.max(0, 320 - (Date.now() - startedAt));
-      await new Promise((resolve) => setTimeout(resolve, wait));
       setAnalysis(nextAnalysis);
       setSelectedRouteId(nextAnalysis.recommendedRouteId);
       setRouteState("success");
@@ -393,10 +392,34 @@ export function HeatGuardApp() {
   return (
     <div className="heatguard-shell">
       <header className="topbar">
-        <a href="#workspace" className="wordmark" aria-label="HeatGuard home">
+        <a
+          href={surface === "dispatch" ? "#command-center" : "#workspace"}
+          className="wordmark"
+          aria-label="HeatGuard home"
+        >
           <span className="wordmark__mark" aria-hidden="true">HG</span>
           <span>HeatGuard</span>
         </a>
+        <nav className="product-switch" aria-label="HeatGuard workspace">
+          <button
+            type="button"
+            className={surface === "dispatch" ? "is-active" : ""}
+            aria-pressed={surface === "dispatch"}
+            onClick={() => setSurface("dispatch")}
+          >
+            <LayoutDashboard aria-hidden="true" size={16} />
+            Dispatch
+          </button>
+          <button
+            type="button"
+            className={surface === "rider" ? "is-active" : ""}
+            aria-pressed={surface === "rider"}
+            onClick={() => setSurface("rider")}
+          >
+            <Bike aria-hidden="true" size={16} />
+            Rider
+          </button>
+        </nav>
         <div className="topbar__status">
           <span
             className={`source-chip source-chip--${heatState}`}
@@ -424,21 +447,32 @@ export function HeatGuardApp() {
         </div>
       </header>
 
-      {(selectedRoute.riskBand === "high" ||
-        selectedRoute.riskBand === "critical") && (
-        <aside className="safety-banner" role="alert">
-          <CircleAlert aria-hidden="true" size={18} />
-          <span>
-            Heat exposure is {selectedRoute.riskBand}. Stop for confusion,
-            faintness, or unusual weakness.
-          </span>
-          <button type="button" onClick={() => setCrewAlertArmed(true)}>
-            Alert dispatch
-          </button>
-        </aside>
-      )}
+      {surface === "dispatch" ? (
+        <DispatcherDashboard
+          dataMode={heatState}
+          onRiderAction={(riderId, action) => {
+            if (riderId === "D-204") {
+              appendAgent(action, "Dispatch update received");
+            }
+          }}
+        />
+      ) : (
+        <>
+          {(selectedRoute.riskBand === "high" ||
+            selectedRoute.riskBand === "critical") && (
+            <aside className="safety-banner" role="alert">
+              <CircleAlert aria-hidden="true" size={18} />
+              <span>
+                Heat exposure is {selectedRoute.riskBand}. Stop for confusion,
+                faintness, or unusual weakness.
+              </span>
+              <button type="button" onClick={() => setCrewAlertArmed(true)}>
+                Alert dispatch
+              </button>
+            </aside>
+          )}
 
-      <main id="workspace" className="workspace">
+          <main id="workspace" className="workspace">
         <aside className="planner-panel">
           <div className="panel-heading">
             <div>
@@ -710,12 +744,16 @@ export function HeatGuardApp() {
             </button>
           </div>
         </form>
-      </section>
+          </section>
+        </>
+      )}
 
       <footer className="status-footer">
         <p>
           <span>HeatGuard MVP</span>
-          <span>Miami · rider D-204</span>
+          <span>
+            Miami · {surface === "dispatch" ? "fleet operations" : "rider D-204"}
+          </span>
           <span>Thermal score is decision support—not medical advice.</span>
         </p>
       </footer>

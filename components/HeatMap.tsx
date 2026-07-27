@@ -25,6 +25,7 @@ export function HeatMap({
 }: HeatMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const selectRouteRef = useRef(onSelectRoute);
   const [mapReady, setMapReady] = useState(false);
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
 
@@ -64,6 +65,12 @@ export function HeatMap({
     }),
     [heatPoints],
   );
+  const initialRouteGeoJson = useRef(routeGeoJson);
+  const initialHeatGeoJson = useRef(heatGeoJson);
+
+  useEffect(() => {
+    selectRouteRef.current = onSelectRoute;
+  }, [onSelectRoute]);
 
   useEffect(() => {
     if (!token || !containerRef.current || mapRef.current) return;
@@ -94,7 +101,7 @@ export function HeatMap({
         if (cancelled) return;
         map.addSource("heatguard-heat", {
           type: "geojson",
-          data: heatGeoJson,
+          data: initialHeatGeoJson.current,
         });
         map.addLayer({
           id: "heatguard-heat",
@@ -122,7 +129,7 @@ export function HeatMap({
         });
         map.addSource("heatguard-routes", {
           type: "geojson",
-          data: routeGeoJson,
+          data: initialRouteGeoJson.current,
         });
         map.addLayer({
           id: "heatguard-routes",
@@ -137,7 +144,7 @@ export function HeatMap({
         });
         map.on("click", "heatguard-routes", (event) => {
           const routeId = event.features?.[0]?.properties?.id;
-          if (typeof routeId === "string") onSelectRoute(routeId);
+          if (typeof routeId === "string") selectRouteRef.current(routeId);
         });
         map.on("mouseenter", "heatguard-routes", () => {
           map.getCanvas().style.cursor = "pointer";
