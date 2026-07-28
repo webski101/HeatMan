@@ -307,8 +307,8 @@ function DemoMap({
         <circle className="route-stop" cx="160" cy="520" r="8" />
         <circle className="route-stop route-stop--finish" cx="760" cy="120" r="9" />
       </svg>
-      <span className="demo-map__label demo-map__label--start">Start</span>
-      <span className="demo-map__label demo-map__label--finish">Destination</span>
+      <span className="demo-map__label demo-map__label--start">Pickup</span>
+      <span className="demo-map__label demo-map__label--finish">Drop-off</span>
       <span className="demo-badge">
         {forecastHours
           ? `SIMULATED +${forecastHours}H HEAT MODEL`

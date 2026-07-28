@@ -12,10 +12,9 @@ export const DEFAULT_DESTINATION: Coordinate = [-80.1848, 25.7913];
 
 export const DEFAULT_PROFILE: RiderProfile = {
   acclimatized: true,
-  carryingLoadKg: 1,
-  shiftMinutesCompleted: 20,
+  carryingLoadKg: 4,
+  shiftMinutesCompleted: 132,
   hydrationMl: 750,
-  heatSensitivity: "standard",
 };
 
 export function createDemoHeatPoints(): HeatPoint[] {
@@ -106,7 +105,7 @@ export function createDemoAnalysis(
           durationS: 500 * speedFactor,
         },
         {
-          instruction: "Continue to your destination",
+          instruction: "Continue to the delivery stop",
           distanceM: 1_170,
           durationS: 364 * speedFactor,
         },

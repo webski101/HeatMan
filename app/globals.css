@@ -306,49 +306,6 @@ a {
   box-shadow: var(--shadow-whisper);
 }
 
-.personal-profile {
-  display: grid;
-  gap: var(--space-xs);
-}
-
-.profile-choice {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  border: var(--rule-thin) solid var(--color-rule);
-  border-radius: var(--radius-sm);
-  background: var(--color-paper-2);
-  padding: var(--space-2xs);
-}
-
-.profile-choice button {
-  display: grid;
-  min-width: 0;
-  min-height: 3.75rem;
-  align-content: center;
-  gap: var(--space-2xs);
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  padding: var(--space-xs);
-  text-align: left;
-  white-space: normal;
-}
-
-.profile-choice button.is-active {
-  background: var(--color-paper);
-  box-shadow: var(--shadow-whisper);
-}
-
-.profile-choice button strong {
-  font-size: var(--text-sm);
-}
-
-.profile-choice button span {
-  color: var(--color-muted);
-  font-size: var(--text-xs);
-  line-height: 1.35;
-}
-
 .stop-list {
   position: relative;
   display: grid;
@@ -941,64 +898,6 @@ a {
   line-height: 1.55;
 }
 
-.departure-comparison {
-  display: grid;
-  gap: var(--space-xs);
-  padding-top: var(--space-md);
-  border-top: var(--rule-thin) solid var(--color-rule);
-}
-
-.departure-options {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: var(--rule-thin) solid var(--color-rule);
-  border-radius: var(--radius-sm);
-  background: var(--color-paper-2);
-  padding: var(--space-2xs);
-}
-
-.departure-options button {
-  position: relative;
-  display: grid;
-  min-width: 0;
-  min-height: 5rem;
-  align-content: center;
-  justify-items: start;
-  gap: var(--space-3xs);
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  padding: var(--space-xs);
-  text-align: left;
-}
-
-.departure-options button.is-active {
-  background: var(--color-paper);
-  box-shadow: var(--shadow-whisper);
-}
-
-.departure-options button > span,
-.departure-options button small {
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-}
-
-.departure-options button strong {
-  font-variant-numeric: tabular-nums;
-}
-
-.departure-options button em {
-  position: absolute;
-  top: var(--space-2xs);
-  right: var(--space-2xs);
-  color: var(--color-success);
-  font-family: var(--font-mono);
-  font-size: 0.55rem;
-  font-style: normal;
-  font-weight: 600;
-}
-
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1111,22 +1010,6 @@ a {
   color: var(--color-success);
 }
 
-.personal-alert {
-  margin-top: calc(var(--space-sm) * -1);
-  padding: var(--space-xs);
-  border: var(--rule-thin) solid var(--color-success);
-  border-radius: var(--radius-sm);
-  background: var(--color-success-soft);
-  color: var(--color-ink-2);
-  font-size: var(--text-xs);
-  line-height: 1.45;
-}
-
-.personal-alert.is-warning {
-  border-color: var(--color-danger);
-  background: var(--color-danger-soft);
-}
-
 .agent-dock {
   display: grid;
   gap: var(--space-lg);
@@ -1188,7 +1071,7 @@ a {
   line-height: 1.55;
 }
 
-.agent-message--user {
+.agent-message--rider {
   border-color: var(--color-accent);
 }
 
@@ -1925,8 +1808,6 @@ a {
 @media (hover: hover) and (pointer: fine) {
   .icon-action:hover,
   .mode-switch button:hover,
-  .profile-choice button:hover,
-  .departure-options button:hover,
   .product-switch button:hover,
   .route-option:hover,
   .alert-toggle:hover,

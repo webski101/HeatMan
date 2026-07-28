@@ -8,10 +8,9 @@ import type {
 
 const DEFAULT_PROFILE: RiderProfile = {
   acclimatized: true,
-  carryingLoadKg: 1,
-  shiftMinutesCompleted: 20,
+  carryingLoadKg: 4,
+  shiftMinutesCompleted: 132,
   hydrationMl: 750,
-  heatSensitivity: "standard",
 };
 
 export function scoreRoute(
@@ -55,7 +54,6 @@ export function scoreRoute(
   }
 
   const exposureModifier =
-    (profile.heatSensitivity === "elevated" ? 14 : 0) +
     (profile.acclimatized ? 0 : 8) +
     Math.max(0, profile.carryingLoadKg - 2) * 1.4 +
     Math.max(0, profile.shiftMinutesCompleted - 90) * 0.035 +
@@ -122,7 +120,7 @@ export function buildBreakPlan(route: RouteCandidate) {
       atMinute,
       title: "Shade and water",
       instruction:
-        "Pause off the roadway in full shade. Cool your neck and forearms before continuing.",
+        "Pause off the roadway in full shade. Remove the delivery bag and cool your neck and forearms.",
       amountMl: route.maximumTemperatureC >= 36 ? 300 : 250,
     });
   }

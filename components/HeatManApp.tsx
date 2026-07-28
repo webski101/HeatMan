@@ -1,16 +1,16 @@
 "use client";
 
 /*
-THESIS: HeatMan starts with a normal outdoor trip and makes invisible street
-heat actionable; it refuses weather-app city averages.
+THESIS: HeatMan makes invisible street heat actionable for delivery riders; it
+refuses routing that treats the city as one uniform temperature field.
 OWN-WORLD: Preserve the cobalt operations workbench, ruled panels, thermal map,
 compact measurements, and direct safety language.
-STORY: Choose how you travel, set heat sensitivity, compare routes and departure
-times, then leave with a route and protection plan.
-FIRST VIEWPORT: Personal trip setup on the left, Miami heat field in the center,
-and the user's exposure result on the right.
-FORM: Established-world Operate extension; Personal is the default and Teams
-remains one switch away.
+STORY: Compare a delivery leg against the heat field, choose the coolest safe
+route, then leave with a route and protection plan.
+FIRST VIEWPORT: Active delivery setup on the left, Miami heat field in the
+center, and rider exposure on the right.
+FORM: Established-world Operate extension; Rider is the default and Teams
+remains available to dispatch.
 */
 
 import { FormEvent, useMemo, useState } from "react";
@@ -38,6 +38,7 @@ import {
   createDemoHeatPoints,
   DEFAULT_DESTINATION,
   DEFAULT_ORIGIN,
+  DEFAULT_PROFILE,
 } from "@/lib/demo-data";
 import { extractHeatPoints } from "@/lib/fortyguard";
 import {
@@ -47,9 +48,7 @@ import {
   scoreRoute,
 } from "@/lib/thermal";
 import type {
-  Coordinate,
   HeatPoint,
-  RiderProfile,
   RouteAnalysis,
   RouteCandidate,
   TravelMode,
@@ -57,38 +56,28 @@ import type {
 
 type AgentMessage = {
   id: string;
-  role: "agent" | "user";
+  role: "agent" | "rider";
   text: string;
   action?: string;
 };
 
-type PersonalProfileMode = "everyday" | "heat-sensitive";
-type GeocodeResult =
-  | { configured: false }
-  | { configured: true; coordinate: Coordinate };
-
-const DEFAULT_ORIGIN_LABEL = "Brickell · current location";
-const DEFAULT_DESTINATION_LABEL = "Museum Park";
-
 const INITIAL_AGENT_MESSAGE: AgentMessage = {
   id: "agent-intro",
   role: "agent",
-  text: "I compared three ways to reach Museum Park against the current street-level heat. The cool corridor lowers your exposure without a major delay.",
+  text: "I compared three rider-safe paths against the current heat field. The cool corridor cuts cumulative heat load without a major delay.",
   action: "Selected Cool corridor",
 };
 
 export function HeatManApp() {
-  const [surface, setSurface] = useState<"personal" | "teams">("personal");
+  const [surface, setSurface] = useState<"rider" | "teams">("rider");
   const initialHeat = useMemo(() => createDemoHeatPoints(), []);
   const [baseHeatPoints, setBaseHeatPoints] =
     useState<HeatPoint[]>(initialHeat);
   const [heatPoints, setHeatPoints] = useState<HeatPoint[]>(initialHeat);
   const [forecastHours, setForecastHours] = useState(0);
-  const [mode, setMode] = useState<TravelMode>("walking");
-  const [personalProfile, setPersonalProfile] =
-    useState<PersonalProfileMode>("everyday");
+  const [mode, setMode] = useState<TravelMode>("cycling");
   const [analysis, setAnalysis] = useState<RouteAnalysis>(() =>
-    createDemoAnalysis("walking", initialHeat),
+    createDemoAnalysis("cycling", initialHeat),
   );
   const [selectedRouteId, setSelectedRouteId] = useState(
     analysis.recommendedRouteId,
@@ -103,48 +92,17 @@ export function HeatManApp() {
     INITIAL_AGENT_MESSAGE,
   ]);
   const [agentInput, setAgentInput] = useState("");
-  const [tripAlertArmed, setTripAlertArmed] = useState(false);
+  const [crewAlertArmed, setCrewAlertArmed] = useState(false);
   const [plannerError, setPlannerError] = useState("");
-  const [plannerNotice, setPlannerNotice] = useState("");
-  const [originText, setOriginText] = useState(DEFAULT_ORIGIN_LABEL);
-  const [destinationText, setDestinationText] = useState(
-    DEFAULT_DESTINATION_LABEL,
-  );
-  const [tripOrigin, setTripOrigin] = useState<Coordinate>(DEFAULT_ORIGIN);
-  const [tripDestination, setTripDestination] =
-    useState<Coordinate>(DEFAULT_DESTINATION);
-  const activeProfile = personalProfileFor(personalProfile);
 
   const selectedRoute =
     analysis.candidates.find((route) => route.id === selectedRouteId) ??
     analysis.candidates[0];
-  const tripAlertMessage = !tripAlertArmed
-    ? ""
-    : selectedRoute.riskBand === "high" ||
-        selectedRoute.riskBand === "critical" ||
-        selectedRoute.maximumTemperatureC >= 36
-      ? `Heat alert: this trip is ${selectedRoute.riskBand} risk with a ${selectedRoute.maximumTemperatureC}°C peak. Use the protection plan before leaving.`
-      : "Monitoring this trip. I’ll alert you if risk becomes high or the route peaks above 36°C.";
   const recommendedRoute =
     analysis.candidates.find(
       (route) => route.id === analysis.recommendedRouteId,
     ) ?? selectedRoute;
   const breakPlan = selectedRoute ? buildBreakPlan(selectedRoute) : [];
-  const departureOptions = useMemo(
-    () =>
-      buildDepartureOptions(
-        analysis.candidates,
-        baseHeatPoints,
-        personalProfileFor(personalProfile),
-      ),
-    [analysis.candidates, baseHeatPoints, personalProfile],
-  );
-  const bestDeparture =
-    [...departureOptions].sort(
-      (a, b) =>
-        a.riskScore - b.riskScore ||
-        a.maximumTemperatureC - b.maximumTemperatureC,
-    )[0] ?? departureOptions[0];
   const fastestRoute = [...analysis.candidates].sort(
     (a, b) => a.durationMinutes - b.durationMinutes,
   )[0];
@@ -163,53 +121,16 @@ export function HeatManApp() {
         )
       : 0;
 
-  async function calculateRoutes(
-    nextMode = mode,
-    nextProfile = activeProfile,
-  ) {
+  async function calculateRoutes(nextMode = mode) {
     setRouteState("loading");
     setPlannerError("");
-    setPlannerNotice("");
     try {
-      let nextOrigin = tripOrigin;
-      let nextDestination = tripDestination;
-      const customOrigin = originText.trim() !== DEFAULT_ORIGIN_LABEL;
-      const customDestination =
-        destinationText.trim() !== DEFAULT_DESTINATION_LABEL;
-
-      if (customOrigin || customDestination) {
-        const [resolvedOrigin, resolvedDestination] = await Promise.all([
-          customOrigin
-            ? geocodeLocation(originText)
-            : Promise.resolve<GeocodeResult>({
-                configured: true,
-                coordinate: tripOrigin,
-              }),
-          customDestination
-            ? geocodeLocation(destinationText)
-            : Promise.resolve<GeocodeResult>({
-                configured: true,
-                coordinate: tripDestination,
-              }),
-        ]);
-        if (!resolvedOrigin.configured || !resolvedDestination.configured) {
-          setPlannerNotice(
-            "Live address search needs Mapbox. Showing the labeled Miami sample route for now.",
-          );
-        } else {
-          nextOrigin = resolvedOrigin.coordinate;
-          nextDestination = resolvedDestination.coordinate;
-          setTripOrigin(nextOrigin);
-          setTripDestination(nextDestination);
-        }
-      }
-
       const response = await fetch("/api/routes", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          origin: nextOrigin,
-          destination: nextDestination,
+          origin: DEFAULT_ORIGIN,
+          destination: DEFAULT_DESTINATION,
           mode: nextMode,
         }),
       });
@@ -228,7 +149,7 @@ export function HeatManApp() {
             durationSeconds: number;
             distanceMeters: number;
             steps: RouteCandidate["steps"];
-          }) => scoreRoute(route, heatPoints, nextProfile),
+          }) => scoreRoute(route, heatPoints, DEFAULT_PROFILE),
         );
         const recommended = chooseCoolestSafeRoute(candidates) ?? candidates[0];
         nextAnalysis = {
@@ -238,7 +159,7 @@ export function HeatManApp() {
           dataMode: heatState === "live" ? "live" : "demo",
         };
       } else {
-        nextAnalysis = createDemoAnalysis(nextMode, heatPoints, nextProfile);
+        nextAnalysis = createDemoAnalysis(nextMode, heatPoints, DEFAULT_PROFILE);
       }
 
       setAnalysis(nextAnalysis);
@@ -342,7 +263,7 @@ export function HeatManApp() {
             steps: route.steps,
           },
           livePoints,
-          activeProfile,
+          DEFAULT_PROFILE,
         ),
       );
       const recommended = chooseCoolestSafeRoute(rescored) ?? rescored[0];
@@ -373,28 +294,6 @@ export function HeatManApp() {
     void calculateRoutes(nextMode);
   }
 
-  function changePersonalProfile(nextProfile: PersonalProfileMode) {
-    setPersonalProfile(nextProfile);
-    const profile = personalProfileFor(nextProfile);
-    const rescored = rescoreCandidates(analysis.candidates, heatPoints, profile);
-    const recommended = chooseCoolestSafeRoute(rescored) ?? rescored[0];
-    setAnalysis((current) => ({
-      ...current,
-      candidates: rescored,
-      recommendedRouteId: recommended.id,
-      generatedAt: new Date().toISOString(),
-    }));
-    setSelectedRouteId(recommended.id);
-    appendAgent(
-      nextProfile === "heat-sensitive"
-        ? "I made the risk model more cautious and rescored every route for higher heat sensitivity."
-        : "I returned to the standard everyday-trip profile and rescored every route.",
-      nextProfile === "heat-sensitive"
-        ? "Heat-sensitive profile on"
-        : "Everyday profile on",
-    );
-  }
-
   function changeForecast(hours: number) {
     const projected = projectHeatPoints(baseHeatPoints, hours);
     setForecastHours(hours);
@@ -410,7 +309,7 @@ export function HeatManApp() {
           steps: route.steps,
         },
         projected,
-        activeProfile,
+        DEFAULT_PROFILE,
       ),
     );
     const recommended = chooseCoolestSafeRoute(rescored) ?? rescored[0];
@@ -429,7 +328,7 @@ export function HeatManApp() {
     if (!query) return;
     setMessages((current) => [
       ...current,
-      { id: crypto.randomUUID(), role: "user", text: query },
+      { id: crypto.randomUUID(), role: "rider", text: query },
     ]);
     setAgentInput("");
     window.setTimeout(() => runAgent(query), 180);
@@ -473,31 +372,14 @@ export function HeatManApp() {
     }
     if (
       normalized.includes("alert") ||
-      normalized.includes("notify") ||
-      normalized.includes("check")
+      normalized.includes("crew") ||
+      normalized.includes("dispatch")
     ) {
-      setTripAlertArmed(true);
+      setCrewAlertArmed(true);
       appendAgent(
-        "Trip heat alerts are on. I will flag a high-risk route or a peak above 36°C in this demonstration.",
-        "Trip alerts on",
+        "Dispatch heat alerts are armed for this shift. The demo will flag routes at high risk or above 36°C peak exposure.",
+        "Shift alert armed",
       );
-      return;
-    }
-    if (
-      normalized.includes("later") ||
-      normalized.includes("hour") ||
-      normalized.includes("time")
-    ) {
-      const hours = normalized.includes("3") ? 3 : 1;
-      changeForecast(hours);
-      appendAgent(
-        `I projected the street-level heat ${hours} hour${hours === 1 ? "" : "s"} from now and rescored every route.`,
-        `Showing +${hours}h forecast`,
-      );
-      return;
-    }
-    if (normalized.includes("sensitive")) {
-      changePersonalProfile("heat-sensitive");
       return;
     }
     if (normalized.includes("walk")) {
@@ -509,7 +391,7 @@ export function HeatManApp() {
       return;
     }
     appendAgent(
-      `Current route: ${selectedRoute.name}, ${selectedRoute.durationMinutes} minutes, ${selectedRoute.averageTemperatureC}°C average, risk ${selectedRoute.riskScore}/100. Ask for the coolest route, fastest route, a hydration break, or whether leaving later is safer.`,
+      `Current route: ${selectedRoute.name}, ${selectedRoute.durationMinutes} minutes, ${selectedRoute.averageTemperatureC}°C average, risk ${selectedRoute.riskScore}/100. Ask me for the coolest route, fastest route, a hydration break, or a dispatch alert.`,
     );
   }
 
@@ -534,12 +416,12 @@ export function HeatManApp() {
         <nav className="product-switch" aria-label="HeatMan workspace">
           <button
             type="button"
-            className={surface === "personal" ? "is-active" : ""}
-            aria-pressed={surface === "personal"}
-            onClick={() => setSurface("personal")}
+            className={surface === "rider" ? "is-active" : ""}
+            aria-pressed={surface === "rider"}
+            onClick={() => setSurface("rider")}
           >
-            <PersonStanding aria-hidden="true" size={16} />
-            Personal
+            <Bike aria-hidden="true" size={16} />
+            Rider
           </button>
           <button
             type="button"
@@ -579,7 +461,14 @@ export function HeatManApp() {
       </header>
 
       {surface === "teams" ? (
-        <DispatcherDashboard dataMode={heatState} />
+        <DispatcherDashboard
+          dataMode={heatState}
+          onRiderAction={(riderId, action) => {
+            if (riderId === "D-204") {
+              appendAgent(action, "Dispatch update received");
+            }
+          }}
+        />
       ) : (
         <>
           {(selectedRoute.riskBand === "high" ||
@@ -590,8 +479,8 @@ export function HeatManApp() {
                 Heat exposure is {selectedRoute.riskBand}. Stop for confusion,
                 faintness, or unusual weakness.
               </span>
-              <button type="button" onClick={() => setTripAlertArmed(true)}>
-                Turn on trip alerts
+              <button type="button" onClick={() => setCrewAlertArmed(true)}>
+                Alert dispatch
               </button>
             </aside>
           )}
@@ -600,22 +489,13 @@ export function HeatManApp() {
         <aside className="planner-panel">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">PERSONAL TRIP · MIAMI</span>
-              <h1>Plan around the heat.</h1>
+              <span className="panel-kicker">ACTIVE DELIVERY</span>
+              <h1>Route the heat, not just the miles.</h1>
             </div>
-            <span className="delivery-id">OUTDOORS</span>
+            <span className="delivery-id">D-204</span>
           </div>
 
           <div className="mode-switch" aria-label="Travel mode">
-            <button
-              type="button"
-              className={mode === "walking" ? "is-active" : ""}
-              aria-pressed={mode === "walking"}
-              onClick={() => changeMode("walking")}
-            >
-              <PersonStanding aria-hidden="true" size={17} />
-              Walk
-            </button>
             <button
               type="button"
               className={mode === "cycling" ? "is-active" : ""}
@@ -625,36 +505,16 @@ export function HeatManApp() {
               <Bike aria-hidden="true" size={17} />
               Cycle
             </button>
+            <button
+              type="button"
+              className={mode === "walking" ? "is-active" : ""}
+              aria-pressed={mode === "walking"}
+              onClick={() => changeMode("walking")}
+            >
+              <PersonStanding aria-hidden="true" size={17} />
+              Walk
+            </button>
           </div>
-
-          <section className="personal-profile" aria-labelledby="personal-profile-title">
-            <div className="section-line">
-              <h2 id="personal-profile-title">Plan for me</h2>
-              <span>changes risk score</span>
-            </div>
-            <div className="profile-choice">
-              <button
-                type="button"
-                className={personalProfile === "everyday" ? "is-active" : ""}
-                aria-pressed={personalProfile === "everyday"}
-                onClick={() => changePersonalProfile("everyday")}
-              >
-                <strong>Everyday</strong>
-                <span>Standard heat caution</span>
-              </button>
-              <button
-                type="button"
-                className={
-                  personalProfile === "heat-sensitive" ? "is-active" : ""
-                }
-                aria-pressed={personalProfile === "heat-sensitive"}
-                onClick={() => changePersonalProfile("heat-sensitive")}
-              >
-                <strong>Heat-sensitive</strong>
-                <span>More cautious guidance</span>
-              </button>
-            </div>
-          </section>
 
           <div className="stop-list">
             <div className="stop-list__rail" aria-hidden="true">
@@ -662,19 +522,19 @@ export function HeatManApp() {
               <span />
             </div>
             <label>
-              <span>Starting from</span>
+              <span>Pickup</span>
               <input
-                value={originText}
-                onChange={(event) => setOriginText(event.target.value)}
-                aria-label="Starting location"
+                value="Brickell dispatch hub"
+                readOnly
+                aria-label="Pickup address"
               />
             </label>
             <label>
-              <span>Going to</span>
+              <span>Drop-off</span>
               <input
-                value={destinationText}
-                onChange={(event) => setDestinationText(event.target.value)}
-                aria-label="Destination"
+                value="Omni / NE 20th Street"
+                readOnly
+                aria-label="Drop-off address"
               />
             </label>
           </div>
@@ -699,7 +559,7 @@ export function HeatManApp() {
             ) : (
               <>
                 <Navigation aria-hidden="true" size={17} />
-                Find my coolest route
+                Compare thermal routes
               </>
             )}
           </button>
@@ -708,8 +568,7 @@ export function HeatManApp() {
             aria-live="polite"
           >
             {plannerError ||
-              plannerNotice ||
-              "Routes are scored by travel time and cumulative heat exposure."}
+              "Alternatives are scored by cumulative temperature exposure."}
           </p>
 
           <section className="route-list" aria-label="Route alternatives">
@@ -760,7 +619,7 @@ export function HeatManApp() {
         <aside className="risk-panel">
           <section className="risk-score">
             <div className="risk-score__head">
-              <span>YOUR TRIP RISK</span>
+              <span>RIDER RISK</span>
               <span className={`risk-band risk-band--${selectedRoute.riskBand}`}>
                 {selectedRoute.riskBand}
               </span>
@@ -775,44 +634,14 @@ export function HeatManApp() {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={selectedRoute.riskScore}
-              aria-label="Modeled personal trip heat risk"
+              aria-label="Modeled rider heat risk"
             >
               <span style={{ "--risk": selectedRoute.riskScore } as React.CSSProperties} />
             </div>
             <p>
-              Modeled from street temperature, time outside, route exposure,
-              hydration, and your selected heat-sensitivity profile.
+              Modeled from route temperature, time exposed, carried load, shift
+              duration, acclimatization, and hydration.
             </p>
-          </section>
-
-          <section
-            className="departure-comparison"
-            aria-labelledby="departure-title"
-          >
-            <div className="section-line">
-              <h2 id="departure-title">Best time to leave</h2>
-              <span>
-                {bestDeparture?.hours === 0
-                  ? "now"
-                  : `in ${bestDeparture?.hours}h`}
-              </span>
-            </div>
-            <div className="departure-options">
-              {departureOptions.map((option) => (
-                <button
-                  key={option.hours}
-                  type="button"
-                  className={forecastHours === option.hours ? "is-active" : ""}
-                  aria-pressed={forecastHours === option.hours}
-                  onClick={() => changeForecast(option.hours)}
-                >
-                  <span>{option.hours === 0 ? "Now" : `+${option.hours}h`}</span>
-                  <strong>{option.riskScore}/100</strong>
-                  <small>{option.maximumTemperatureC}°C peak</small>
-                  {option.hours === bestDeparture?.hours && <em>BEST</em>}
-                </button>
-              ))}
-            </div>
           </section>
 
           <section className="metric-grid" aria-label="Route heat metrics">
@@ -871,7 +700,7 @@ export function HeatManApp() {
                 <span className="break-plan__time">START</span>
                 <div>
                   <strong>Pre-hydrate</strong>
-                  <p>Drink before departure and reassess at your destination.</p>
+                  <p>Drink before departure and reassess at the drop-off.</p>
                   <span>250 mL water</span>
                 </div>
               </article>
@@ -880,28 +709,15 @@ export function HeatManApp() {
 
           <button
             className={
-              tripAlertArmed ? "alert-toggle is-success" : "alert-toggle"
+              crewAlertArmed ? "alert-toggle is-success" : "alert-toggle"
             }
             type="button"
-            onClick={() => setTripAlertArmed((current) => !current)}
-            aria-pressed={tripAlertArmed}
+            onClick={() => setCrewAlertArmed((current) => !current)}
+            aria-pressed={crewAlertArmed}
           >
             <BellRing aria-hidden="true" size={17} />
-            {tripAlertArmed ? "Trip heat alerts on" : "Turn on trip heat alerts"}
+            {crewAlertArmed ? "Dispatch alert armed" : "Arm dispatch alert"}
           </button>
-          {tripAlertMessage && (
-            <p
-              className={
-                selectedRoute.riskBand === "high" ||
-                selectedRoute.riskBand === "critical"
-                  ? "personal-alert is-warning"
-                  : "personal-alert"
-              }
-              role="status"
-            >
-              {tripAlertMessage}
-            </p>
-          )}
         </aside>
       </main>
 
@@ -912,7 +728,7 @@ export function HeatManApp() {
           </span>
           <div>
             <strong>HeatMan agent</strong>
-            <span>Route · timing · protection</span>
+            <span>Route · risk · recovery</span>
           </div>
         </div>
         <div className="agent-thread" aria-live="polite">
@@ -927,13 +743,13 @@ export function HeatManApp() {
           ))}
         </div>
         <form className="agent-form" onSubmit={submitAgent}>
-          <label htmlFor="agent-query">Ask about your trip</label>
+          <label htmlFor="agent-query">Ask the route agent</label>
           <div>
             <input
               id="agent-query"
               value={agentInput}
               onChange={(event) => setAgentInput(event.target.value)}
-              placeholder="e.g. Is leaving later safer?"
+              placeholder="e.g. Add a water break"
             />
             <button type="submit" disabled={!agentInput.trim()}>
               <Route aria-hidden="true" size={17} />
@@ -949,7 +765,7 @@ export function HeatManApp() {
         <p>
           <span>HeatMan MVP</span>
           <span>
-            Miami · {surface === "teams" ? "Teams operations" : "Personal trip"}
+            Miami · {surface === "teams" ? "fleet operations" : "rider D-204"}
           </span>
           <span>Thermal score is decision support—not medical advice.</span>
         </p>
@@ -957,90 +773,6 @@ export function HeatManApp() {
     </div>
   );
 }
-
-function personalProfileFor(
-  profileMode: PersonalProfileMode,
-): RiderProfile {
-  return {
-    ...DEFAULT_PERSONAL_PROFILE,
-    acclimatized: profileMode === "everyday",
-    heatSensitivity:
-      profileMode === "heat-sensitive" ? "elevated" : "standard",
-  };
-}
-
-function rescoreCandidates(
-  candidates: RouteCandidate[],
-  heatPoints: HeatPoint[],
-  profile: RiderProfile,
-) {
-  return candidates.map((route) =>
-    scoreRoute(
-      {
-        id: route.id,
-        name: route.name,
-        coordinates: route.coordinates,
-        durationSeconds: route.durationMinutes * 60,
-        distanceMeters: route.distanceKm * 1000,
-        steps: route.steps,
-      },
-      heatPoints,
-      profile,
-    ),
-  );
-}
-
-function buildDepartureOptions(
-  candidates: RouteCandidate[],
-  heatPoints: HeatPoint[],
-  profile: RiderProfile,
-) {
-  return [0, 1, 3].map((hours) => {
-    const projected = projectHeatPoints(heatPoints, hours);
-    const rescored = rescoreCandidates(candidates, projected, profile);
-    const recommended = chooseCoolestSafeRoute(rescored) ?? rescored[0];
-    return {
-      hours,
-      riskScore: recommended.riskScore,
-      maximumTemperatureC: recommended.maximumTemperatureC,
-    };
-  });
-}
-
-async function geocodeLocation(query: string): Promise<GeocodeResult> {
-  const response = await fetch(
-    `/api/geocode?q=${encodeURIComponent(query.trim())}`,
-    { cache: "no-store" },
-  );
-  const payload = await response.json();
-  if (!response.ok || payload.error) {
-    throw new Error(
-      payload.message ?? `HeatMan could not find “${query.trim()}”.`,
-    );
-  }
-  if (payload.configured === false) return { configured: false };
-  if (
-    !Array.isArray(payload.coordinate) ||
-    payload.coordinate.length < 2 ||
-    !payload.coordinate.every(
-      (value: unknown) => typeof value === "number" && Number.isFinite(value),
-    )
-  ) {
-    throw new Error(`HeatMan could not find “${query.trim()}”.`);
-  }
-  return {
-    configured: true,
-    coordinate: [payload.coordinate[0], payload.coordinate[1]],
-  };
-}
-
-const DEFAULT_PERSONAL_PROFILE: RiderProfile = {
-  acclimatized: true,
-  carryingLoadKg: 1,
-  shiftMinutesCompleted: 20,
-  hydrationMl: 750,
-  heatSensitivity: "standard",
-};
 
 async function pollFortyGuard(activityId: string) {
   const deadline = Date.now() + 180_000;

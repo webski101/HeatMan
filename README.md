@@ -1,7 +1,7 @@
 # HeatMan
 
-HeatMan is a heat-aware navigation and safety system for everyday outdoor trips
-and outdoor teams in Miami. It compares Mapbox walking/cycling alternatives
+HeatMan is a heat-aware navigation and safety system for delivery riders and
+their dispatch teams in Miami. It compares Mapbox walking/cycling alternatives
 against FortyGuard temperature tiles, scores cumulative exposure, selects the
 coolest safe route, and turns the result into concrete hydration, rest, timing,
 alert, and dispatch actions.
@@ -15,10 +15,10 @@ to the live providers.
 - Mapbox multi-route cycling and walking alternatives
 - FortyGuard asynchronous heatmap submission and result polling
 - Thermal-cost route scoring in °C·min
-- Personal risk model using exposure, heat sensitivity, hydration, and
+- Rider risk model using exposure, carried load, shift duration, hydration, and
   acclimatization
 - Cool-route recommendation with a bounded detour
-- Hydration/rest plan, personal heat alerts, and Teams dispatch controls
+- Hydration/rest plan, rider heat alerts, and Teams dispatch controls
 - Natural-language route agent that takes actions
 - Current, +1 hour, and +3 hour micro-hotspot projections
 - Cooling-stop recommendations
