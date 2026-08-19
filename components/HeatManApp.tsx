@@ -63,6 +63,17 @@ type AgentMessage = {
   action?: string;
 };
 
+type ForecastReading = {
+  temperatureC: number;
+  relativeHumidity: number;
+  deltaC: number;
+};
+
+const forecastCache = new Map<
+  string,
+  ForecastReading & { expiresAt: number }
+>();
+
 const INITIAL_AGENT_MESSAGE: AgentMessage = {
   id: "agent-intro",
   role: "agent",
@@ -77,6 +88,12 @@ export function HeatManApp() {
     useState<HeatPoint[]>(initialHeat);
   const [heatPoints, setHeatPoints] = useState<HeatPoint[]>(initialHeat);
   const [forecastHours, setForecastHours] = useState(0);
+  const [forecastState, setForecastState] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [forecastFeedback, setForecastFeedback] = useState(
+    "Choose +1h or +3h for a live forecast.",
+  );
   const [pickupAddress, setPickupAddress] = useState(
     "Brickell City Centre, Miami, FL",
   );
@@ -303,35 +320,37 @@ export function HeatManApp() {
       setHeatPoints(baseHeatPoints);
       setHeatState(baseHeatMode);
       setHeatLabel(baseHeatLabel);
+      setForecastState("idle");
+      setForecastFeedback("Showing the current heat field.");
       rescoreWithHeat(baseHeatPoints, baseHeatMode);
       return;
     }
-    setHeatState("loading");
+    setForecastState("loading");
+    setForecastFeedback(`Loading the live +${hours}h Miami forecast…`);
     const midpoint = selectedRoute.coordinates[
       Math.floor(selectedRoute.coordinates.length / 2)
     ] ?? destinationCoordinate;
     try {
-      const response = await fetch(
-        `/api/forecast?lat=${midpoint[1]}&lon=${midpoint[0]}&hours=${hours}`,
-        { cache: "no-store" },
-      );
-      const payload = await response.json();
-      if (!response.ok || payload.error) {
-        throw new Error(payload.message ?? "The forecast is unavailable.");
-      }
+      const payload = await fetchOpenMeteoForecast(midpoint, hours);
       const projected = shiftHeatPoints(baseHeatPoints, Number(payload.deltaC));
       setForecastHours(hours);
       setHeatPoints(projected);
       setHeatState("forecast");
+      setForecastState("success");
+      setForecastFeedback(
+        `Forecast loaded: ${payload.temperatureC}°C air, ${payload.relativeHumidity}% humidity.`,
+      );
       setHeatLabel(
         `Open-Meteo +${hours}h · ${payload.temperatureC}°C air · ${payload.relativeHumidity}% RH · ${baseHeatMode === "demo" ? "simulated spatial baseline" : "FortyGuard spatial baseline"}`,
       );
       rescoreWithHeat(projected, "forecast");
     } catch (error) {
-      setHeatState(baseHeatMode);
-      setHeatLabel(baseHeatLabel);
+      setForecastState("error");
+      const message =
+        error instanceof Error ? error.message : "The forecast could not be loaded.";
+      setForecastFeedback(message);
       appendAgent(
-        error instanceof Error ? error.message : "The forecast could not be loaded.",
+        message,
       );
     }
   }
@@ -663,6 +682,8 @@ export function HeatManApp() {
           onSelectRoute={setSelectedRouteId}
           forecastHours={forecastHours}
           onForecastChange={changeForecast}
+          forecastState={forecastState}
+          forecastFeedback={forecastFeedback}
           coolingSites={coolingSites}
           dataLabel={heatLabel}
         />
@@ -825,6 +846,60 @@ export function HeatManApp() {
       </footer>
     </div>
   );
+}
+
+async function fetchOpenMeteoForecast(
+  coordinate: Coordinate,
+  hours: number,
+): Promise<ForecastReading> {
+  const cacheKey = `${coordinate[0].toFixed(3)}:${coordinate[1].toFixed(3)}:${hours}`;
+  const cached = forecastCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+
+  const params = new URLSearchParams({
+    latitude: String(coordinate[1]),
+    longitude: String(coordinate[0]),
+    current: "temperature_2m,relative_humidity_2m",
+    hourly: "temperature_2m,relative_humidity_2m",
+    temperature_unit: "celsius",
+    timezone: "America/New_York",
+    timeformat: "unixtime",
+    forecast_hours: "12",
+  });
+  const response = await fetch(
+    `https://api.open-meteo.com/v1/forecast?${params}`,
+  );
+  const payload = await response.json().catch(() => null);
+  if (response.status === 429) {
+    throw new Error("The forecast service is busy. Wait one minute and try again.");
+  }
+  if (!response.ok || !payload?.current || !Array.isArray(payload?.hourly?.time)) {
+    throw new Error(payload?.reason ?? "The live forecast is unavailable.");
+  }
+
+  const targetTime = Date.now() / 1000 + hours * 3600;
+  const times: number[] = payload.hourly.time;
+  let index = times.findIndex((time) => time >= targetTime);
+  if (index < 0) index = times.length - 1;
+  const temperatureC = Number(payload.hourly.temperature_2m?.[index]);
+  const currentTemperatureC = Number(payload.current.temperature_2m);
+  const relativeHumidity = Number(payload.hourly.relative_humidity_2m?.[index]);
+  if (
+    !Number.isFinite(temperatureC) ||
+    !Number.isFinite(currentTemperatureC) ||
+    !Number.isFinite(relativeHumidity)
+  ) {
+    throw new Error("The forecast response was incomplete. Please try again.");
+  }
+
+  const reading = {
+    temperatureC,
+    relativeHumidity,
+    deltaC: Number((temperatureC - currentTemperatureC).toFixed(1)),
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  };
+  forecastCache.set(cacheKey, reading);
+  return reading;
 }
 
 async function geocodeAddress(text: string): Promise<{

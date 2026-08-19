@@ -12,6 +12,8 @@ interface HeatMapProps {
   onSelectRoute: (routeId: string) => void;
   forecastHours: number;
   onForecastChange: (hours: number) => void | Promise<void>;
+  forecastState: "idle" | "loading" | "success" | "error";
+  forecastFeedback: string;
   coolingSites: CoolingSite[];
   dataLabel: string;
 }
@@ -23,6 +25,8 @@ export function HeatMap({
   onSelectRoute,
   forecastHours,
   onForecastChange,
+  forecastState,
+  forecastFeedback,
   coolingSites,
   dataLabel,
 }: HeatMapProps) {
@@ -280,10 +284,18 @@ export function HeatMap({
             className={forecastHours === hours ? "is-active" : ""}
             aria-pressed={forecastHours === hours}
             onClick={() => void onForecastChange(hours)}
+            disabled={forecastState === "loading"}
           >
             {hours === 0 ? "Now" : `+${hours}h`}
           </button>
         ))}
+        <span
+          className={`forecast-feedback forecast-feedback--${forecastState}`}
+          role="status"
+          aria-live="polite"
+        >
+          {forecastFeedback}
+        </span>
       </div>
 
       <div className="map-stops" aria-label="Cooling stops">

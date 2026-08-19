@@ -831,6 +831,28 @@ a {
   font-weight: 600;
 }
 
+.forecast-control button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.forecast-feedback {
+  grid-column: 1 / -1;
+  max-width: 16rem;
+  padding: 0 var(--space-2xs) var(--space-2xs);
+  color: var(--color-muted);
+  font-size: 0.65rem;
+  line-height: 1.35;
+}
+
+.forecast-feedback--loading {
+  color: var(--color-accent-strong);
+}
+
+.forecast-feedback--error {
+  color: var(--color-danger);
+}
+
 .map-stops a {
   color: inherit;
   text-decoration: none;
