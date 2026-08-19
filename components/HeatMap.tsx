@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type mapboxgl from "mapbox-gl";
+import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import { Crosshair, MapPin } from "lucide-react";
 import { COOLING_STOPS } from "@/lib/demo-data";
 import type { HeatPoint, RouteCandidate } from "@/lib/types";
@@ -24,10 +24,10 @@ export function HeatMap({
   onForecastChange,
 }: HeatMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
   const selectRouteRef = useRef(onSelectRoute);
   const [mapReady, setMapReady] = useState(false);
-  const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
+  const [mapFailed, setMapFailed] = useState(false);
 
   const routeGeoJson = useMemo(
     () => ({
@@ -73,87 +73,97 @@ export function HeatMap({
   }, [onSelectRoute]);
 
   useEffect(() => {
-    if (!token || !containerRef.current || mapRef.current) return;
+    if (!containerRef.current || mapRef.current) return;
     let cancelled = false;
+    let didLoad = false;
 
     async function mountMap() {
-      const mapboxModule = await import("mapbox-gl");
-      if (cancelled || !containerRef.current) return;
-      const mapbox = mapboxModule.default;
-      mapbox.accessToken = token;
-      const styles = getComputedStyle(document.documentElement);
-      const accent = styles.getPropertyValue("--color-accent").trim();
-      const rule = styles.getPropertyValue("--color-muted").trim();
-      const cool = styles.getPropertyValue("--color-heat-low").trim();
-      const warm = styles.getPropertyValue("--color-heat-warm").trim();
-      const hot = styles.getPropertyValue("--color-heat-high").trim();
+      try {
+        const maplibreModule = await import("maplibre-gl");
+        if (cancelled || !containerRef.current) return;
+        const maplibre = maplibreModule.default;
+        const styles = getComputedStyle(document.documentElement);
+        const accent = styles.getPropertyValue("--color-accent").trim();
+        const rule = styles.getPropertyValue("--color-muted").trim();
+        const cool = styles.getPropertyValue("--color-heat-low").trim();
+        const warm = styles.getPropertyValue("--color-heat-warm").trim();
+        const hot = styles.getPropertyValue("--color-heat-high").trim();
 
-      const map = new mapbox.Map({
-        container: containerRef.current,
-        style: "mapbox://styles/mapbox/light-v11",
-        center: [-80.192, 25.779],
-        zoom: 13.7,
-        attributionControl: false,
-      });
-      mapRef.current = map;
+        const map = new maplibre.Map({
+          container: containerRef.current,
+          style: "https://tiles.openfreemap.org/styles/liberty",
+          center: [-80.192, 25.779],
+          zoom: 13.7,
+          attributionControl: { compact: true },
+        });
+        mapRef.current = map;
 
-      map.on("load", () => {
-        if (cancelled) return;
-        map.addSource("heatman-heat", {
-          type: "geojson",
-          data: initialHeatGeoJson.current,
+        map.on("error", () => {
+          if (!didLoad && !cancelled) setMapFailed(true);
         });
-        map.addLayer({
-          id: "heatman-heat",
-          type: "heatmap",
-          source: "heatman-heat",
-          paint: {
-            "heatmap-weight": ["get", "weight"],
-            "heatmap-intensity": 0.9,
-            "heatmap-radius": 30,
-            "heatmap-opacity": 0.58,
-            "heatmap-color": [
-              "interpolate",
-              ["linear"],
-              ["heatmap-density"],
-              0,
-              "transparent",
-              0.28,
-              cool,
-              0.58,
-              warm,
-              1,
-              hot,
-            ],
-          },
+
+        map.on("load", () => {
+          if (cancelled) return;
+          didLoad = true;
+          setMapFailed(false);
+          map.addSource("heatman-heat", {
+            type: "geojson",
+            data: initialHeatGeoJson.current,
+          });
+          map.addLayer({
+            id: "heatman-heat",
+            type: "heatmap",
+            source: "heatman-heat",
+            paint: {
+              "heatmap-weight": ["get", "weight"],
+              "heatmap-intensity": 0.9,
+              "heatmap-radius": 30,
+              "heatmap-opacity": 0.58,
+              "heatmap-color": [
+                "interpolate",
+                ["linear"],
+                ["heatmap-density"],
+                0,
+                "transparent",
+                0.28,
+                cool,
+                0.58,
+                warm,
+                1,
+                hot,
+              ],
+            },
+          });
+          map.addSource("heatman-routes", {
+            type: "geojson",
+            data: initialRouteGeoJson.current,
+          });
+          map.addLayer({
+            id: "heatman-routes",
+            type: "line",
+            source: "heatman-routes",
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: {
+              "line-color": ["case", ["get", "selected"], accent, rule],
+              "line-width": ["case", ["get", "selected"], 6, 3],
+              "line-opacity": ["case", ["get", "selected"], 1, 0.72],
+            },
+          });
+          map.on("click", "heatman-routes", (event) => {
+            const routeId = event.features?.[0]?.properties?.id;
+            if (typeof routeId === "string") selectRouteRef.current(routeId);
+          });
+          map.on("mouseenter", "heatman-routes", () => {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", "heatman-routes", () => {
+            map.getCanvas().style.cursor = "";
+          });
+          setMapReady(true);
         });
-        map.addSource("heatman-routes", {
-          type: "geojson",
-          data: initialRouteGeoJson.current,
-        });
-        map.addLayer({
-          id: "heatman-routes",
-          type: "line",
-          source: "heatman-routes",
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: {
-            "line-color": ["case", ["get", "selected"], accent, rule],
-            "line-width": ["case", ["get", "selected"], 6, 3],
-            "line-opacity": ["case", ["get", "selected"], 1, 0.72],
-          },
-        });
-        map.on("click", "heatman-routes", (event) => {
-          const routeId = event.features?.[0]?.properties?.id;
-          if (typeof routeId === "string") selectRouteRef.current(routeId);
-        });
-        map.on("mouseenter", "heatman-routes", () => {
-          map.getCanvas().style.cursor = "pointer";
-        });
-        map.on("mouseleave", "heatman-routes", () => {
-          map.getCanvas().style.cursor = "";
-        });
-        setMapReady(true);
-      });
+      } catch {
+        if (!cancelled) setMapFailed(true);
+      }
     }
 
     void mountMap();
@@ -162,16 +172,16 @@ export function HeatMap({
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map) return;
     const routesSource = map.getSource("heatman-routes") as
-      | mapboxgl.GeoJSONSource
+      | GeoJSONSource
       | undefined;
     const heatSource = map.getSource("heatman-heat") as
-      | mapboxgl.GeoJSONSource
+      | GeoJSONSource
       | undefined;
     routesSource?.setData(routeGeoJson);
     heatSource?.setData(heatGeoJson);
@@ -196,8 +206,13 @@ export function HeatMap({
 
   return (
     <section className="map-panel" aria-label="Miami thermal route map">
-      <div ref={containerRef} className="mapbox-surface" aria-hidden={!token} />
-      {!token && (
+      <div
+        ref={containerRef}
+        className="maplibre-surface"
+        hidden={mapFailed}
+        aria-label="Interactive Downtown Miami map"
+      />
+      {mapFailed && (
         <DemoMap
           routes={routes}
           selectedRouteId={selectedRouteId}

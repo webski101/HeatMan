@@ -52,7 +52,8 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
 
   assert.match(gitignore, /\.env\.\*/);
   assert.match(exampleEnv, /FORTYGUARD_API_KEY=/);
-  assert.match(exampleEnv, /MAPBOX_ACCESS_TOKEN=/);
+  assert.match(exampleEnv, /OPENROUTESERVICE_API_KEY=/);
+  assert.doesNotMatch(exampleEnv, /MAPBOX_ACCESS_TOKEN=/);
   assert.match(tokens, /Hallmark · macrostructure: Workbench/);
   assert.match(tokens, /--color-accent:/);
   assert.match(packageJson, /"build": "vinext build"/);

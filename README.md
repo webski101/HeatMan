@@ -1,7 +1,7 @@
 # HeatMan
 
 HeatMan is a heat-aware navigation and safety system for delivery riders and
-their dispatch teams in Miami. It compares Mapbox walking/cycling alternatives
+their dispatch teams in Miami. It compares OpenRouteService walking/cycling alternatives
 against FortyGuard temperature tiles, scores cumulative exposure, selects the
 coolest safe route, and turns the result into concrete hydration, rest, timing,
 alert, and dispatch actions.
@@ -12,7 +12,8 @@ to the live providers.
 
 ## Product capabilities
 
-- Mapbox multi-route cycling and walking alternatives
+- OpenRouteService multi-route cycling and walking alternatives
+- MapLibre interactive map with OpenFreeMap street tiles
 - FortyGuard asynchronous heatmap submission and result polling
 - Thermal-cost route scoring in °C·min
 - Rider risk model using exposure, carried load, shift duration, hydration, and
@@ -22,7 +23,7 @@ to the live providers.
 - Natural-language route agent that takes actions
 - Current, +1 hour, and +3 hour micro-hotspot projections
 - Cooling-stop recommendations
-- Responsive simulated map fallback for credential-free demos
+- Responsive simulated route and heat fallback when a live provider is unavailable
 
 ## Run locally
 
@@ -40,8 +41,9 @@ Use `npm.cmd test` for the production build and server-render checks.
 ## Environment
 
 - `FORTYGUARD_API_KEY` — server-side FortyGuard requests
-- `MAPBOX_ACCESS_TOKEN` — server-side Directions API requests
-- `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` — optional Mapbox GL map rendering
+- `OPENROUTESERVICE_API_KEY` — server-side walking/cycling Directions requests
+
+MapLibre and OpenFreeMap do not require credentials.
 
 ## Miami API probe
 

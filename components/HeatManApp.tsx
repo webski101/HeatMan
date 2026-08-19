@@ -140,7 +140,10 @@ export function HeatManApp() {
       }
 
       let nextAnalysis: RouteAnalysis;
-      if (payload.source === "mapbox" && Array.isArray(payload.routes)) {
+      if (
+        payload.source === "openrouteservice" &&
+        Array.isArray(payload.routes)
+      ) {
         const candidates = payload.routes.map(
           (route: {
             id: string;

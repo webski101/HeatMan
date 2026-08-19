@@ -53,7 +53,7 @@ workbench: direct, calm, and specific about risk without using alarmist copy.
 ## Evidence on Hand
 
 The repository contains a working Miami rider route demonstration, thermal
-scoring logic, FortyGuard and Mapbox adapters, a simulated heat field, and a
+scoring logic, FortyGuard and OpenRouteService adapters, a simulated heat field, and a
 deployed private web app. No customer claims, clinical validation, or production
 fleet integrations are established and must not be fabricated.
 

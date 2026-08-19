@@ -507,13 +507,17 @@ a {
   background: var(--color-paper-2);
 }
 
-.mapbox-surface,
+.maplibre-surface,
 .demo-map {
   position: absolute;
   inset: 0;
 }
 
-.mapbox-surface:empty {
+.maplibre-surface {
+  z-index: var(--z-base);
+}
+
+.maplibre-surface[hidden] {
   display: none;
 }
 

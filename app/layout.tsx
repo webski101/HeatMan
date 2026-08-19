@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 
 const title = "HeatMan — Cool-route intelligence for delivery riders";

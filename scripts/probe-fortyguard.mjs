@@ -47,7 +47,7 @@ if (!API_KEY) {
 }
 
 async function runProbe() {
-  const dateTime = previousCompletedHourInMiami();
+  const dateTime = requestedProbeHour();
   const requestBody = {
     polygon_aoi: MIAMI_AOI,
     date_time: {
@@ -95,6 +95,18 @@ async function runProbe() {
   console.log("\nMiami probe completed:");
   console.log(JSON.stringify(summary, null, 2));
   console.log(`Raw response saved to ${outputPath}`);
+}
+
+function requestedProbeHour() {
+  const date = process.argv[2];
+  const time = process.argv[3];
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(date ?? "") &&
+    /^\d{2}:\d{2}$/.test(time ?? "")
+  ) {
+    return { date, time };
+  }
+  return previousCompletedHourInMiami();
 }
 
 async function pollActivity(activityId) {
