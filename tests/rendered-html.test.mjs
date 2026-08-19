@@ -65,7 +65,12 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(teamsSource, /Fleet heat command center/);
   assert.match(teamsSource, /Daily fleet exposure/);
   assert.match(mapSource, /FORTYGUARD \+ OPEN-METEO/);
+  assert.match(mapSource, /FORTYGUARD VERIFIED 2025 FIELD/);
   assert.match(mapSource, /temperature and route geometry preserved/);
+  assert.match(appSource, /Use verified Aug 20, 2025 demo/);
+  assert.match(appSource, /async function loadVerifiedEvent/);
+  assert.match(appSource, /Historical data was not loaded automatically/);
+  assert.match(appSource, /Forecast controls are disabled for the historical 2025 field/);
   assert.doesNotMatch(mapSource, /SIMULATED \+\$\{forecastHours\}H HEAT MODEL/);
   assert.doesNotMatch(exampleEnv, /api-key:\s*[A-Za-z0-9]/i);
 });

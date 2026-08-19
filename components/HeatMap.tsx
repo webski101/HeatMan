@@ -14,8 +14,10 @@ interface HeatMapProps {
   onForecastChange: (hours: number) => void | Promise<void>;
   forecastState: "idle" | "loading" | "success" | "error";
   forecastFeedback: string;
+  forecastDisabledReason?: string;
   coolingSites: CoolingSite[];
   dataLabel: string;
+  baseHeatMode: "demo" | "live" | "verified";
 }
 
 export function HeatMap({
@@ -27,8 +29,10 @@ export function HeatMap({
   onForecastChange,
   forecastState,
   forecastFeedback,
+  forecastDisabledReason,
   coolingSites,
   dataLabel,
+  baseHeatMode,
 }: HeatMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -260,6 +264,7 @@ export function HeatMap({
           onSelectRoute={onSelectRoute}
           forecastHours={forecastHours}
           heatPoints={heatPoints}
+          baseHeatMode={baseHeatMode}
         />
       )}
 
@@ -285,7 +290,11 @@ export function HeatMap({
             className={forecastHours === hours ? "is-active" : ""}
             aria-pressed={forecastHours === hours}
             onClick={() => void onForecastChange(hours)}
-            disabled={forecastState === "loading"}
+            disabled={
+              forecastState === "loading" ||
+              (hours > 0 && Boolean(forecastDisabledReason))
+            }
+            title={hours > 0 ? forecastDisabledReason : undefined}
           >
             {hours === 0 ? "Now" : `+${hours}h`}
           </button>
@@ -319,12 +328,14 @@ function DataFallbackMap({
   onSelectRoute,
   forecastHours,
   heatPoints,
+  baseHeatMode,
 }: {
   routes: RouteCandidate[];
   selectedRouteId: string;
   onSelectRoute: (routeId: string) => void;
   forecastHours: number;
   heatPoints: HeatPoint[];
+  baseHeatMode: "demo" | "live" | "verified";
 }) {
   const projection = createFallbackProjection(routes, heatPoints);
   const hasFortyGuard = heatPoints.some((point) => point.source === "fortyguard");
@@ -333,13 +344,15 @@ function DataFallbackMap({
     routes.find((route) => route.id === selectedRouteId) ?? routes[0];
   const start = selectedRoute?.coordinates[0];
   const finish = selectedRoute?.coordinates.at(-1);
-  const badge = hasFortyGuard
-    ? forecastHours
-      ? `FORTYGUARD + OPEN-METEO +${forecastHours}H FIELD`
-      : "FORTYGUARD DATA FIELD"
-    : forecastHours
-      ? `OPEN-METEO +${forecastHours}H · SIMULATED BASE`
-      : "SIMULATED STARTER FIELD";
+  const badge = baseHeatMode === "verified"
+    ? "FORTYGUARD VERIFIED 2025 FIELD"
+    : hasFortyGuard
+      ? forecastHours
+        ? `FORTYGUARD + OPEN-METEO +${forecastHours}H FIELD`
+        : "FORTYGUARD LIVE DATA FIELD"
+      : forecastHours
+        ? `OPEN-METEO +${forecastHours}H · SIMULATED BASE`
+        : "SIMULATED STARTER FIELD";
 
   return (
     <div

@@ -120,6 +120,7 @@ export function HeatManApp() {
   const [baseHeatMode, setBaseHeatMode] = useState<
     "demo" | "live" | "verified"
   >("demo");
+  const [currentHeatUnavailable, setCurrentHeatUnavailable] = useState(false);
   const [heatLabel, setHeatLabel] = useState("Simulated launch field");
   const [baseHeatLabel, setBaseHeatLabel] = useState("Simulated launch field");
   const [messages, setMessages] = useState<AgentMessage[]>([
@@ -248,63 +249,95 @@ export function HeatManApp() {
   }
 
   async function refreshHeat() {
+    setCurrentHeatUnavailable(false);
     setHeatState("loading");
     try {
       const dateTime = previousCompletedHourInMiami();
       const aoi = createRouteAoi(analysis.candidates);
-      let realPoints = await fetchFortyGuardHeat(aoi, dateTime);
-      let nextMode: "live" | "verified" = "live";
-      let nextLabel = `FortyGuard ${dateTime.date} ${dateTime.time} Miami time`;
+      const realPoints = await fetchFortyGuardHeat(aoi, dateTime);
       if (!realPoints.length) {
-        realPoints = await fetchFortyGuardHeat(aoi, {
-          date: "2025-08-20",
-          time: "13:00",
-        });
-        nextMode = "verified";
-        nextLabel = "FortyGuard verified event · Aug 20, 2025 1:00 PM";
+        setHeatPoints(initialHeat);
+        setBaseHeatPoints(initialHeat);
+        setBaseHeatMode("demo");
+        setBaseHeatLabel("Simulated launch field");
+        setHeatLabel(
+          `Current FortyGuard field unavailable · ${dateTime.date} ${dateTime.time} Miami time`,
+        );
+        setForecastHours(0);
+        setForecastState("idle");
+        setForecastFeedback(
+          "Current heat is unavailable. Historical data was not loaded automatically.",
+        );
+        setHeatState("demo");
+        setCurrentHeatUnavailable(true);
+        rescoreWithHeat(initialHeat, "demo");
+        appendAgent(
+          "Current FortyGuard tiles are unavailable for this hour. I kept historical data off and restored the clearly labeled simulated starter field.",
+          "Choose the verified 2025 demo explicitly",
+        );
+        return;
       }
-      if (!realPoints.length) throw new Error("FortyGuard returned no route-area tiles.");
       setHeatPoints(realPoints);
       setBaseHeatPoints(realPoints);
-      setBaseHeatMode(nextMode);
+      setBaseHeatMode("live");
+      const nextLabel = `FortyGuard ${dateTime.date} ${dateTime.time} Miami time`;
       setHeatLabel(nextLabel);
       setBaseHeatLabel(nextLabel);
       setForecastHours(0);
-      const rescored = analysis.candidates.map((route) =>
-        scoreRoute(
-          {
-            id: route.id,
-            name: route.name,
-            coordinates: route.coordinates,
-            durationSeconds: route.durationMinutes * 60,
-            distanceMeters: route.distanceKm * 1000,
-            steps: route.steps,
-          },
-          realPoints,
-          DEFAULT_PROFILE,
-        ),
-      );
-      const recommended = chooseCoolestSafeRoute(rescored) ?? rescored[0];
-      setAnalysis({
-        candidates: rescored,
-        recommendedRouteId: recommended.id,
-        generatedAt: new Date().toISOString(),
-        dataMode: nextMode,
-      });
-      setSelectedRouteId(recommended.id);
-      setHeatState(nextMode);
+      setForecastState("idle");
+      setForecastFeedback("Choose +1h or +3h for a live forecast.");
+      const recommended = rescoreWithHeat(realPoints, "live");
+      setHeatState("live");
       appendAgent(
-        nextMode === "live"
-          ? `Current FortyGuard tiles are in. I rescored every route and selected ${recommended.name}.`
-          : `Current tiles were unavailable, so I used a real FortyGuard Miami heat-event field from August 20, 2025 and selected ${recommended.name}.`,
-        nextMode === "live" ? "Live thermal route applied" : "Verified event field applied",
+        `Current FortyGuard tiles are in. I rescored every route and selected ${recommended.name}.`,
+        "Live thermal route applied",
       );
     } catch (error) {
       setHeatState("error");
       appendAgent(
         error instanceof Error
-          ? `${error.message} The last verified heat field remains on the map.`
-          : "The heat field could not be refreshed. The last verified field remains active.",
+          ? `${error.message} The active field was not replaced.`
+          : "The current heat request failed. The active field was not replaced.",
+      );
+    }
+  }
+
+  async function loadVerifiedEvent() {
+    setCurrentHeatUnavailable(false);
+    setHeatState("loading");
+    try {
+      const aoi = createRouteAoi(analysis.candidates);
+      const verifiedPoints = await fetchFortyGuardHeat(aoi, {
+        date: "2025-08-20",
+        time: "13:00",
+      });
+      if (!verifiedPoints.length) {
+        throw new Error("The verified August 2025 field returned no route-area tiles.");
+      }
+      const verifiedLabel = "FortyGuard verified historical event · Aug 20, 2025 1:00 PM";
+      setHeatPoints(verifiedPoints);
+      setBaseHeatPoints(verifiedPoints);
+      setBaseHeatMode("verified");
+      setHeatLabel(verifiedLabel);
+      setBaseHeatLabel(verifiedLabel);
+      setForecastHours(0);
+      setForecastState("idle");
+      setForecastFeedback(
+        "Historical 2025 field selected. +1h and +3h are disabled because this is not current data.",
+      );
+      const recommended = rescoreWithHeat(verifiedPoints, "verified");
+      setHeatState("verified");
+      appendAgent(
+        `You selected the verified FortyGuard Miami heat event from August 20, 2025. I rescored every route and selected ${recommended.name}.`,
+        "Verified historical demo applied",
+      );
+    } catch (error) {
+      setHeatState("error");
+      setCurrentHeatUnavailable(true);
+      appendAgent(
+        error instanceof Error
+          ? error.message
+          : "The verified historical field could not be loaded.",
       );
     }
   }
@@ -325,6 +358,15 @@ export function HeatManApp() {
       rescoreWithHeat(baseHeatPoints, baseHeatMode);
       return;
     }
+    if (baseHeatMode === "verified" || currentHeatUnavailable) {
+      setForecastState("error");
+      setForecastFeedback(
+        baseHeatMode === "verified"
+          ? "Forecast controls are disabled for the historical 2025 field. Refresh current heat first."
+          : "Forecast routing needs a current FortyGuard field. Refresh current heat first.",
+      );
+      return;
+    }
     setForecastState("loading");
     setForecastFeedback(`Loading the live +${hours}h Miami forecast…`);
     const midpoint = selectedRoute.coordinates[
@@ -341,7 +383,7 @@ export function HeatManApp() {
         `Forecast loaded: ${payload.temperatureC}°C air, ${payload.relativeHumidity}% humidity.`,
       );
       setHeatLabel(
-        `Open-Meteo +${hours}h · ${payload.temperatureC}°C air · ${payload.relativeHumidity}% RH · ${baseHeatMode === "demo" ? "simulated spatial baseline" : "FortyGuard spatial baseline"}`,
+        `Open-Meteo +${hours}h · ${payload.temperatureC}°C air · ${payload.relativeHumidity}% RH · ${baseHeatMode === "demo" ? "simulated spatial baseline" : "current FortyGuard spatial baseline"}`,
       );
       rescoreWithHeat(projected, "forecast");
     } catch (error) {
@@ -382,6 +424,7 @@ export function HeatManApp() {
       dataMode,
     }));
     setSelectedRouteId(recommended.id);
+    return recommended;
   }
 
   function submitAgent(event: FormEvent<HTMLFormElement>) {
@@ -497,11 +540,13 @@ export function HeatManApp() {
         </nav>
         <div className="topbar__status">
           <span
-            className={`source-chip source-chip--${heatState}`}
+            className={`source-chip source-chip--${currentHeatUnavailable ? "unavailable" : heatState}`}
             aria-live="polite"
           >
             <span className="source-chip__dot" aria-hidden="true" />
-            {heatState === "live"
+            {currentHeatUnavailable
+              ? "CURRENT HEAT UNAVAILABLE"
+              : heatState === "live"
               ? "FORTYGUARD LIVE"
               : heatState === "verified"
                 ? "FORTYGUARD VERIFIED"
@@ -537,6 +582,19 @@ export function HeatManApp() {
         />
       ) : (
         <>
+          {currentHeatUnavailable && (
+            <aside className="heat-availability-banner" role="status">
+              <CircleAlert aria-hidden="true" size={18} />
+              <span>
+                <strong>Current FortyGuard heat is unavailable.</strong>
+                No historical data was loaded automatically. You can use the
+                verified Miami event only as a clearly labeled demo.
+              </span>
+              <button type="button" onClick={() => void loadVerifiedEvent()}>
+                Use verified Aug 20, 2025 demo
+              </button>
+            </aside>
+          )}
           {(selectedRoute.riskBand === "high" ||
             selectedRoute.riskBand === "critical") && (
             <aside className="safety-banner" role="alert">
@@ -684,8 +742,16 @@ export function HeatManApp() {
           onForecastChange={changeForecast}
           forecastState={forecastState}
           forecastFeedback={forecastFeedback}
+          forecastDisabledReason={
+            baseHeatMode === "verified"
+              ? "Forecast controls are disabled for the historical 2025 field."
+              : currentHeatUnavailable
+                ? "Forecast routing needs a current FortyGuard field."
+                : undefined
+          }
           coolingSites={coolingSites}
           dataLabel={heatLabel}
+          baseHeatMode={baseHeatMode}
         />
 
         <aside className="risk-panel">

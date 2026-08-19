@@ -184,6 +184,10 @@ a {
   background: var(--color-danger);
 }
 
+.source-chip--unavailable .source-chip__dot {
+  background: var(--color-warning);
+}
+
 .icon-action {
   display: grid;
   width: var(--control-height);
@@ -691,6 +695,34 @@ a {
   border-radius: var(--radius-xs);
   background: var(--color-paper);
   font-weight: 600;
+}
+
+.heat-availability-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--page-gutter);
+  border-bottom: var(--rule-thin) solid var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+}
+
+.heat-availability-banner > span {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: var(--space-2xs);
+}
+
+.heat-availability-banner button {
+  min-height: var(--control-height);
+  border: var(--rule-thin) solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  padding-inline: var(--space-md);
+  font-weight: 700;
 }
 
 .fallback-map-note {
@@ -2072,6 +2104,19 @@ a {
   }
 
   .safety-banner button {
+    margin-inline-start: calc(var(--space-lg) + var(--space-2xs));
+  }
+
+  .heat-availability-banner {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .heat-availability-banner > span {
+    flex-basis: calc(100% - var(--space-xl));
+  }
+
+  .heat-availability-banner button {
     margin-inline-start: calc(var(--space-lg) + var(--space-2xs));
   }
 
