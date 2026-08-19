@@ -35,7 +35,9 @@ test("server-renders the HeatMan delivery rider workspace", async () => {
   assert.match(html, /RIDER RISK/);
   assert.match(html, /Arm dispatch alert/);
   assert.match(html, /Miami thermal route map/);
-  assert.match(html, /MIAMI SIMULATION/);
+  assert.match(html, /SIMULATED STARTER/);
+  assert.match(html, /Brickell City Centre/);
+  assert.match(html, /Stephen P\. Clark Government Center/);
   assert.doesNotMatch(html, /codex-preview|Starter Project|react-loading-skeleton/);
 });
 

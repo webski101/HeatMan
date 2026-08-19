@@ -6,24 +6,26 @@ against FortyGuard temperature tiles, scores cumulative exposure, selects the
 coolest safe route, and turns the result into concrete hydration, rest, timing,
 alert, and dispatch actions.
 
-The app remains fully interactive without credentials by using a clearly
-labeled Miami simulation. Adding API keys switches routing and heat retrieval
-to the live providers.
+The starter screen is a clearly labeled Miami simulation. With the configured
+keys, address search and routing use OpenRouteService, heat requests use
+FortyGuard, and the +1/+3 hour controls use Open-Meteo forecast data. If a
+current FortyGuard query has no tiles, the app can fall back to a clearly dated,
+verified Miami heat-event field rather than presenting historical data as live.
 
 ## Product capabilities
 
-- OpenRouteService multi-route cycling and walking alternatives
+- OpenRouteService Miami address search plus cycling and walking alternatives
 - MapLibre interactive map with OpenFreeMap street tiles
 - FortyGuard asynchronous heatmap submission and result polling
 - Thermal-cost route scoring in °C·min
 - Rider risk model using exposure, carried load, shift duration, hydration, and
   acclimatization
 - Cool-route recommendation with a bounded detour
-- Hydration/rest plan, rider heat alerts, and Teams dispatch controls
-- Natural-language route agent that takes actions
-- Current, +1 hour, and +3 hour micro-hotspot projections
-- Cooling-stop recommendations
-- Responsive simulated route and heat fallback when a live provider is unavailable
+- Hydration/rest plan and route-aware rider risk guidance
+- Deterministic natural-language decision agent for route and safety actions
+- Current, +1 hour, and +3 hour Open-Meteo-adjusted heat fields
+- Official Miami-Dade cooling-site recommendations near the destination
+- Clearly labeled Teams workflow preview (no live fleet GPS or outbound SMS yet)
 
 ## Run locally
 

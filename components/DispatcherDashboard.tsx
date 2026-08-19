@@ -33,7 +33,13 @@ import {
 } from "@/lib/fleet-data";
 
 type DispatcherDashboardProps = {
-  dataMode: "demo" | "loading" | "live" | "error";
+  dataMode:
+    | "demo"
+    | "loading"
+    | "live"
+    | "verified"
+    | "forecast"
+    | "error";
   onRiderAction?: (riderId: string, action: string) => void;
 };
 
@@ -129,7 +135,7 @@ export function DispatcherDashboard({
       lastIntervention: "Safety message queued",
       status: "Safety message queued",
     }));
-    addActivity(`Safety message queued for ${selectedRider.id} (MVP simulation)`);
+    addActivity(`Demo safety message shown for ${selectedRider.id}; no SMS was sent`);
     onRiderAction?.(selectedRider.id, message.trim());
   }
 
@@ -182,11 +188,13 @@ export function DispatcherDashboard({
     <main id="command-center" className="dispatch-shell">
       <section className="dispatch-heading">
         <div>
-          <span className="panel-kicker">MIAMI OPERATIONS · ACTIVE SHIFT</span>
-          <h1>Fleet heat command center</h1>
+          <span className="panel-kicker">
+            DEMO OPERATIONS · {dataMode === "live" ? "LIVE HEAT · " : ""}NO LIVE GPS OR SMS
+          </span>
+          <h1>Fleet heat command center preview</h1>
           <p>
-            Monitor cumulative exposure and intervene before a rider crosses a
-            dangerous threshold.
+            Explore the dispatcher workflow with illustrative riders. Connect
+            accounts, rider location, and messaging before production use.
           </p>
         </div>
         <div className="dispatch-heading__actions">
@@ -204,7 +212,7 @@ export function DispatcherDashboard({
             }}
           >
             <BellRing aria-hidden="true" size={16} />
-            Auto alerts {autoAlerts ? "on" : "off"}
+            Demo alerts {autoAlerts ? "on" : "off"}
           </button>
           <button type="button" className="secondary-action" onClick={exportReport}>
             <Download aria-hidden="true" size={16} />
@@ -315,7 +323,6 @@ export function DispatcherDashboard({
           riders={riders}
           selectedRiderId={selectedRider.id}
           onSelectRider={setSelectedRiderId}
-          dataMode={dataMode}
         />
 
         <aside className="rider-action-panel" aria-label="Selected rider actions">
@@ -378,15 +385,15 @@ export function DispatcherDashboard({
           <div className="intervention-grid">
             <button type="button" className="primary-action" onClick={rerouteSelected}>
               <Navigation aria-hidden="true" size={16} />
-              Send cooler route
+              Preview cooler route
             </button>
             <button type="button" className="secondary-action" onClick={scheduleBreak}>
               <Clock3 aria-hidden="true" size={16} />
-              Schedule break
+              Preview break
             </button>
             <button type="button" className="secondary-action" onClick={rescheduleShift}>
               <CalendarClock aria-hidden="true" size={16} />
-              Move shift +30m
+              Preview shift +30m
             </button>
             {selectedRider.alertState !== "none" &&
               selectedRider.alertState !== "acknowledged" && (
@@ -402,7 +409,7 @@ export function DispatcherDashboard({
           </div>
 
           <div className="message-rider">
-            <label htmlFor="rider-message">Message rider</label>
+            <label htmlFor="rider-message">Preview rider message</label>
             <textarea
               id="rider-message"
               value={message}
@@ -483,15 +490,13 @@ function FleetMap({
   riders,
   selectedRiderId,
   onSelectRider,
-  dataMode,
 }: {
   riders: FleetRider[];
   selectedRiderId: string;
   onSelectRider: (riderId: string) => void;
-  dataMode: DispatcherDashboardProps["dataMode"];
 }) {
   return (
-    <section className="fleet-map" aria-label="Live Miami fleet heat map">
+    <section className="fleet-map" aria-label="Illustrative Miami fleet heat map">
       <div className="fleet-map__water" />
       <span className="fleet-street fleet-street--one">Biscayne Blvd</span>
       <span className="fleet-street fleet-street--two">Flagler St</span>
@@ -502,7 +507,7 @@ function FleetMap({
       <div className="fleet-heat fleet-heat--cool">31.1°</div>
       <div className="fleet-map__heading">
         <span><MapPin aria-hidden="true" size={14} /> Miami urban core</span>
-        <span>{dataMode === "live" ? "LIVE FIELD" : "SIMULATED FIELD"}</span>
+        <span>ILLUSTRATIVE FLEET · NO LIVE GPS</span>
       </div>
       {riders.map((rider) => (
         <button

@@ -40,14 +40,16 @@ import {
   DEFAULT_ORIGIN,
   DEFAULT_PROFILE,
 } from "@/lib/demo-data";
+import { nearestCoolingSites } from "@/lib/cooling-sites";
 import { extractHeatPoints } from "@/lib/fortyguard";
 import {
   buildBreakPlan,
   chooseCoolestSafeRoute,
-  projectHeatPoints,
   scoreRoute,
+  shiftHeatPoints,
 } from "@/lib/thermal";
 import type {
+  Coordinate,
   HeatPoint,
   RouteAnalysis,
   RouteCandidate,
@@ -64,7 +66,7 @@ type AgentMessage = {
 const INITIAL_AGENT_MESSAGE: AgentMessage = {
   id: "agent-intro",
   role: "agent",
-  text: "I compared three rider-safe paths against the current heat field. The cool corridor cuts cumulative heat load without a major delay.",
+  text: "The starter view uses a labeled simulated field. Enter two Miami stops for live routing, then refresh heat to request FortyGuard tiles.",
   action: "Selected Cool corridor",
 };
 
@@ -75,6 +77,16 @@ export function HeatManApp() {
     useState<HeatPoint[]>(initialHeat);
   const [heatPoints, setHeatPoints] = useState<HeatPoint[]>(initialHeat);
   const [forecastHours, setForecastHours] = useState(0);
+  const [pickupAddress, setPickupAddress] = useState(
+    "Brickell City Centre, Miami, FL",
+  );
+  const [dropoffAddress, setDropoffAddress] = useState(
+    "Adrienne Arsht Center, Miami, FL",
+  );
+  const [originCoordinate, setOriginCoordinate] =
+    useState<Coordinate>(DEFAULT_ORIGIN);
+  const [destinationCoordinate, setDestinationCoordinate] =
+    useState<Coordinate>(DEFAULT_DESTINATION);
   const [mode, setMode] = useState<TravelMode>("cycling");
   const [analysis, setAnalysis] = useState<RouteAnalysis>(() =>
     createDemoAnalysis("cycling", initialHeat),
@@ -86,14 +98,26 @@ export function HeatManApp() {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [heatState, setHeatState] = useState<
-    "demo" | "loading" | "live" | "error"
+    "demo" | "loading" | "live" | "verified" | "forecast" | "error"
   >("demo");
+  const [baseHeatMode, setBaseHeatMode] = useState<
+    "demo" | "live" | "verified"
+  >("demo");
+  const [heatLabel, setHeatLabel] = useState("Simulated launch field");
+  const [baseHeatLabel, setBaseHeatLabel] = useState("Simulated launch field");
   const [messages, setMessages] = useState<AgentMessage[]>([
     INITIAL_AGENT_MESSAGE,
   ]);
   const [agentInput, setAgentInput] = useState("");
   const [crewAlertArmed, setCrewAlertArmed] = useState(false);
   const [plannerError, setPlannerError] = useState("");
+  const [plannerStatus, setPlannerStatus] = useState(
+    "Enter two Miami stops to compare live route alternatives.",
+  );
+  const coolingSites = useMemo(
+    () => nearestCoolingSites(destinationCoordinate),
+    [destinationCoordinate],
+  );
 
   const selectedRoute =
     analysis.candidates.find((route) => route.id === selectedRouteId) ??
@@ -121,16 +145,32 @@ export function HeatManApp() {
         )
       : 0;
 
-  async function calculateRoutes(nextMode = mode) {
+  async function calculateRoutes(nextMode = mode, resolveStops = true) {
     setRouteState("loading");
     setPlannerError("");
     try {
+      let nextOrigin = originCoordinate;
+      let nextDestination = destinationCoordinate;
+      if (resolveStops) {
+        setPlannerStatus("Finding both Miami addresses…");
+        const [originMatch, destinationMatch] = await Promise.all([
+          geocodeAddress(pickupAddress),
+          geocodeAddress(dropoffAddress),
+        ]);
+        nextOrigin = originMatch.coordinate;
+        nextDestination = destinationMatch.coordinate;
+        setOriginCoordinate(nextOrigin);
+        setDestinationCoordinate(nextDestination);
+        setPlannerStatus(
+          `Live address match: ${originMatch.label} → ${destinationMatch.label}`,
+        );
+      }
       const response = await fetch("/api/routes", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          origin: DEFAULT_ORIGIN,
-          destination: DEFAULT_DESTINATION,
+          origin: nextOrigin,
+          destination: nextDestination,
           mode: nextMode,
         }),
       });
@@ -140,10 +180,7 @@ export function HeatManApp() {
       }
 
       let nextAnalysis: RouteAnalysis;
-      if (
-        payload.source === "openrouteservice" &&
-        Array.isArray(payload.routes)
-      ) {
+      if (payload.source === "openrouteservice" && Array.isArray(payload.routes)) {
         const candidates = payload.routes.map(
           (route: {
             id: string;
@@ -159,15 +196,21 @@ export function HeatManApp() {
           candidates,
           recommendedRouteId: recommended.id,
           generatedAt: new Date().toISOString(),
-          dataMode: heatState === "live" ? "live" : "demo",
+          dataMode:
+            heatState === "live" || heatState === "verified" || heatState === "forecast"
+              ? heatState
+              : "demo",
         };
       } else {
-        nextAnalysis = createDemoAnalysis(nextMode, heatPoints, DEFAULT_PROFILE);
+        throw new Error("Live routing did not return usable alternatives.");
       }
 
       setAnalysis(nextAnalysis);
       setSelectedRouteId(nextAnalysis.recommendedRouteId);
       setRouteState("success");
+      setPlannerStatus(
+        `${nextAnalysis.candidates.length} live OpenRouteService alternatives scored against the active heat field.`,
+      );
       const recommendation = nextAnalysis.candidates.find(
         (route) => route.id === nextAnalysis.recommendedRouteId,
       );
@@ -191,69 +234,24 @@ export function HeatManApp() {
     setHeatState("loading");
     try {
       const dateTime = previousCompletedHourInMiami();
-      const response = await fetch("/api/fortyguard/heatmap", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          polygon_aoi: {
-            type: "FeatureCollection",
-            features: [
-              {
-                type: "Feature",
-                properties: { name: "HeatMan Downtown Miami AOI" },
-                geometry: {
-                  type: "Polygon",
-                  coordinates: [
-                    [
-                      [-80.201, 25.765],
-                      [-80.1805, 25.765],
-                      [-80.1805, 25.794],
-                      [-80.201, 25.794],
-                      [-80.201, 25.765],
-                    ],
-                  ],
-                },
-              },
-            ],
-          },
-          date_time: {
-            start_date: dateTime.date,
-            start_time: dateTime.time,
-            filter_type: 1,
-          },
-          granularity: 60,
-          analytic_type: "tcm",
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok || payload.error) {
-        throw new Error(
-          payload.message ?? "The FortyGuard heat request was rejected.",
-        );
+      const aoi = createRouteAoi(analysis.candidates);
+      let realPoints = await fetchFortyGuardHeat(aoi, dateTime);
+      let nextMode: "live" | "verified" = "live";
+      let nextLabel = `FortyGuard ${dateTime.date} ${dateTime.time} Miami time`;
+      if (!realPoints.length) {
+        realPoints = await fetchFortyGuardHeat(aoi, {
+          date: "2025-08-20",
+          time: "13:00",
+        });
+        nextMode = "verified";
+        nextLabel = "FortyGuard verified event · Aug 20, 2025 1:00 PM";
       }
-      if (payload.configured === false) {
-        setHeatState("demo");
-        appendAgent(
-          "FortyGuard credentials are not connected on this deployment. I kept the Miami simulation active and clearly labeled.",
-        );
-        return;
-      }
-
-      const activityId = payload?.data?.activity_id;
-      if (!activityId) {
-        throw new Error("FortyGuard returned no activity ID.");
-      }
-      const completed = await pollFortyGuard(activityId);
-      const livePoints = extractHeatPoints(
-        completed?.data?.result?.map_data ?? completed?.data?.result,
-      );
-      if (!livePoints.length) {
-        throw new Error(
-          "FortyGuard completed the request but returned no readable temperature tiles.",
-        );
-      }
-      setHeatPoints(livePoints);
-      setBaseHeatPoints(livePoints);
+      if (!realPoints.length) throw new Error("FortyGuard returned no route-area tiles.");
+      setHeatPoints(realPoints);
+      setBaseHeatPoints(realPoints);
+      setBaseHeatMode(nextMode);
+      setHeatLabel(nextLabel);
+      setBaseHeatLabel(nextLabel);
       setForecastHours(0);
       const rescored = analysis.candidates.map((route) =>
         scoreRoute(
@@ -265,7 +263,7 @@ export function HeatManApp() {
             distanceMeters: route.distanceKm * 1000,
             steps: route.steps,
           },
-          livePoints,
+          realPoints,
           DEFAULT_PROFILE,
         ),
       );
@@ -274,13 +272,15 @@ export function HeatManApp() {
         candidates: rescored,
         recommendedRouteId: recommended.id,
         generatedAt: new Date().toISOString(),
-        dataMode: "live",
+        dataMode: nextMode,
       });
       setSelectedRouteId(recommended.id);
-      setHeatState("live");
+      setHeatState(nextMode);
       appendAgent(
-        `FortyGuard live tiles are in. I rescored every route and selected ${recommended.name}.`,
-        "Live thermal route applied",
+        nextMode === "live"
+          ? `Current FortyGuard tiles are in. I rescored every route and selected ${recommended.name}.`
+          : `Current tiles were unavailable, so I used a real FortyGuard Miami heat-event field from August 20, 2025 and selected ${recommended.name}.`,
+        nextMode === "live" ? "Live thermal route applied" : "Verified event field applied",
       );
     } catch (error) {
       setHeatState("error");
@@ -294,13 +294,52 @@ export function HeatManApp() {
 
   function changeMode(nextMode: TravelMode) {
     setMode(nextMode);
-    void calculateRoutes(nextMode);
+    void calculateRoutes(nextMode, false);
   }
 
-  function changeForecast(hours: number) {
-    const projected = projectHeatPoints(baseHeatPoints, hours);
-    setForecastHours(hours);
-    setHeatPoints(projected);
+  async function changeForecast(hours: number) {
+    if (hours === 0) {
+      setForecastHours(0);
+      setHeatPoints(baseHeatPoints);
+      setHeatState(baseHeatMode);
+      setHeatLabel(baseHeatLabel);
+      rescoreWithHeat(baseHeatPoints, baseHeatMode);
+      return;
+    }
+    setHeatState("loading");
+    const midpoint = selectedRoute.coordinates[
+      Math.floor(selectedRoute.coordinates.length / 2)
+    ] ?? destinationCoordinate;
+    try {
+      const response = await fetch(
+        `/api/forecast?lat=${midpoint[1]}&lon=${midpoint[0]}&hours=${hours}`,
+        { cache: "no-store" },
+      );
+      const payload = await response.json();
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message ?? "The forecast is unavailable.");
+      }
+      const projected = shiftHeatPoints(baseHeatPoints, Number(payload.deltaC));
+      setForecastHours(hours);
+      setHeatPoints(projected);
+      setHeatState("forecast");
+      setHeatLabel(
+        `Open-Meteo +${hours}h · ${payload.temperatureC}°C air · ${payload.relativeHumidity}% RH · ${baseHeatMode === "demo" ? "simulated spatial baseline" : "FortyGuard spatial baseline"}`,
+      );
+      rescoreWithHeat(projected, "forecast");
+    } catch (error) {
+      setHeatState(baseHeatMode);
+      setHeatLabel(baseHeatLabel);
+      appendAgent(
+        error instanceof Error ? error.message : "The forecast could not be loaded.",
+      );
+    }
+  }
+
+  function rescoreWithHeat(
+    projected: HeatPoint[],
+    dataMode: RouteAnalysis["dataMode"],
+  ) {
     const rescored = analysis.candidates.map((route) =>
       scoreRoute(
         {
@@ -321,6 +360,7 @@ export function HeatManApp() {
       candidates: rescored,
       recommendedRouteId: recommended.id,
       generatedAt: new Date().toISOString(),
+      dataMode,
     }));
     setSelectedRouteId(recommended.id);
   }
@@ -433,7 +473,7 @@ export function HeatManApp() {
             onClick={() => setSurface("teams")}
           >
             <LayoutDashboard aria-hidden="true" size={16} />
-            Teams
+            Teams demo
           </button>
         </nav>
         <div className="topbar__status">
@@ -444,11 +484,15 @@ export function HeatManApp() {
             <span className="source-chip__dot" aria-hidden="true" />
             {heatState === "live"
               ? "FORTYGUARD LIVE"
+              : heatState === "verified"
+                ? "FORTYGUARD VERIFIED"
+                : heatState === "forecast"
+                  ? "OPEN-METEO FORECAST"
               : heatState === "loading"
                 ? "FETCHING HEAT"
                 : heatState === "error"
                   ? "LAST FIELD"
-                  : "MIAMI SIMULATION"}
+                  : "SIMULATED STARTER"}
           </span>
           <button
             className="icon-action"
@@ -527,17 +571,19 @@ export function HeatManApp() {
             <label>
               <span>Pickup</span>
               <input
-                value="Brickell dispatch hub"
-                readOnly
+                value={pickupAddress}
+                onChange={(event) => setPickupAddress(event.target.value)}
                 aria-label="Pickup address"
+                autoComplete="street-address"
               />
             </label>
             <label>
               <span>Drop-off</span>
               <input
-                value="Omni / NE 20th Street"
-                readOnly
+                value={dropoffAddress}
+                onChange={(event) => setDropoffAddress(event.target.value)}
                 aria-label="Drop-off address"
+                autoComplete="street-address"
               />
             </label>
           </div>
@@ -571,7 +617,7 @@ export function HeatManApp() {
             aria-live="polite"
           >
             {plannerError ||
-              "Alternatives are scored by cumulative temperature exposure."}
+              plannerStatus}
           </p>
 
           <section className="route-list" aria-label="Route alternatives">
@@ -617,6 +663,8 @@ export function HeatManApp() {
           onSelectRoute={setSelectedRouteId}
           forecastHours={forecastHours}
           onForecastChange={changeForecast}
+          coolingSites={coolingSites}
+          dataLabel={heatLabel}
         />
 
         <aside className="risk-panel">
@@ -719,7 +767,9 @@ export function HeatManApp() {
             aria-pressed={crewAlertArmed}
           >
             <BellRing aria-hidden="true" size={17} />
-            {crewAlertArmed ? "Dispatch alert armed" : "Arm dispatch alert"}
+            {crewAlertArmed
+              ? "Dispatch alert armed (demo)"
+              : "Arm dispatch alert (demo)"}
           </button>
         </aside>
       </main>
@@ -730,8 +780,8 @@ export function HeatManApp() {
             <Bot size={18} />
           </span>
           <div>
-            <strong>HeatMan agent</strong>
-            <span>Route · risk · recovery</span>
+            <strong>HeatMan decision agent</strong>
+            <span>Live tools · deterministic safety rules</span>
           </div>
         </div>
         <div className="agent-thread" aria-live="polite">
@@ -768,12 +818,93 @@ export function HeatManApp() {
         <p>
           <span>HeatMan MVP</span>
           <span>
-            Miami · {surface === "teams" ? "fleet operations" : "rider D-204"}
+            Miami · {surface === "teams" ? "fleet operations demo" : "rider D-204"}
           </span>
           <span>Thermal score is decision support—not medical advice.</span>
         </p>
       </footer>
     </div>
+  );
+}
+
+async function geocodeAddress(text: string): Promise<{
+  label: string;
+  coordinate: Coordinate;
+}> {
+  const response = await fetch("/api/geocode", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.error || !payload.matches?.[0]) {
+    throw new Error(payload.message ?? `Could not find “${text}” in Miami.`);
+  }
+  return payload.matches[0];
+}
+
+function createRouteAoi(routes: RouteCandidate[]) {
+  const coordinates = routes.flatMap((route) => route.coordinates);
+  const longitudes = coordinates.map(([longitude]) => longitude);
+  const latitudes = coordinates.map(([, latitude]) => latitude);
+  const padding = 0.0025;
+  const minLongitude = Math.min(...longitudes) - padding;
+  const maxLongitude = Math.max(...longitudes) + padding;
+  const minLatitude = Math.min(...latitudes) - padding;
+  const maxLatitude = Math.max(...latitudes) + padding;
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { name: "HeatMan active Miami route corridor" },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [minLongitude, minLatitude],
+              [maxLongitude, minLatitude],
+              [maxLongitude, maxLatitude],
+              [minLongitude, maxLatitude],
+              [minLongitude, minLatitude],
+            ],
+          ],
+        },
+      },
+    ],
+  };
+}
+
+async function fetchFortyGuardHeat(
+  polygonAoi: ReturnType<typeof createRouteAoi>,
+  dateTime: { date: string; time: string },
+) {
+  const response = await fetch("/api/fortyguard/heatmap", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      polygon_aoi: polygonAoi,
+      date_time: {
+        start_date: dateTime.date,
+        start_time: dateTime.time,
+        filter_type: 1,
+      },
+      granularity: 60,
+      analytic_type: "tcm",
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.error) {
+    throw new Error(payload.message ?? "The FortyGuard heat request was rejected.");
+  }
+  if (payload.configured === false) {
+    throw new Error("FortyGuard is not configured on this deployment.");
+  }
+  const activityId = payload?.data?.activity_id;
+  if (!activityId) throw new Error("FortyGuard returned no activity ID.");
+  const completed = await pollFortyGuard(activityId);
+  return extractHeatPoints(
+    completed?.data?.result?.map_data ?? completed?.data?.result,
   );
 }
 

@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import { Crosshair, MapPin } from "lucide-react";
-import { COOLING_STOPS } from "@/lib/demo-data";
-import type { HeatPoint, RouteCandidate } from "@/lib/types";
+import type { CoolingSite, HeatPoint, RouteCandidate } from "@/lib/types";
 
 interface HeatMapProps {
   routes: RouteCandidate[];
@@ -12,7 +11,9 @@ interface HeatMapProps {
   heatPoints: HeatPoint[];
   onSelectRoute: (routeId: string) => void;
   forecastHours: number;
-  onForecastChange: (hours: number) => void;
+  onForecastChange: (hours: number) => void | Promise<void>;
+  coolingSites: CoolingSite[];
+  dataLabel: string;
 }
 
 export function HeatMap({
@@ -22,6 +23,8 @@ export function HeatMap({
   onSelectRoute,
   forecastHours,
   onForecastChange,
+  coolingSites,
+  dataLabel,
 }: HeatMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -65,8 +68,23 @@ export function HeatMap({
     }),
     [heatPoints],
   );
+  const coolingGeoJson = useMemo(
+    () => ({
+      type: "FeatureCollection" as const,
+      features: coolingSites.map((site) => ({
+        type: "Feature" as const,
+        properties: { id: site.id, name: site.name },
+        geometry: {
+          type: "Point" as const,
+          coordinates: site.coordinate,
+        },
+      })),
+    }),
+    [coolingSites],
+  );
   const initialRouteGeoJson = useRef(routeGeoJson);
   const initialHeatGeoJson = useRef(heatGeoJson);
+  const initialCoolingGeoJson = useRef(coolingGeoJson);
 
   useEffect(() => {
     selectRouteRef.current = onSelectRoute;
@@ -138,6 +156,21 @@ export function HeatMap({
             type: "geojson",
             data: initialRouteGeoJson.current,
           });
+          map.addSource("heatman-cooling", {
+            type: "geojson",
+            data: initialCoolingGeoJson.current,
+          });
+          map.addLayer({
+            id: "heatman-cooling",
+            type: "circle",
+            source: "heatman-cooling",
+            paint: {
+              "circle-radius": 7,
+              "circle-color": cool,
+              "circle-stroke-width": 2,
+              "circle-stroke-color": "#ffffff",
+            },
+          });
           map.addLayer({
             id: "heatman-routes",
             type: "line",
@@ -183,8 +216,12 @@ export function HeatMap({
     const heatSource = map.getSource("heatman-heat") as
       | GeoJSONSource
       | undefined;
+    const coolingSource = map.getSource("heatman-cooling") as
+      | GeoJSONSource
+      | undefined;
     routesSource?.setData(routeGeoJson);
     heatSource?.setData(heatGeoJson);
+    coolingSource?.setData(coolingGeoJson);
 
     const selected = routes.find((route) => route.id === selectedRouteId);
     if (selected?.coordinates.length) {
@@ -202,7 +239,7 @@ export function HeatMap({
         },
       );
     }
-  }, [heatGeoJson, mapReady, routeGeoJson, routes, selectedRouteId]);
+  }, [coolingGeoJson, heatGeoJson, mapReady, routeGeoJson, routes, selectedRouteId]);
 
   return (
     <section className="map-panel" aria-label="Miami thermal route map">
@@ -224,11 +261,9 @@ export function HeatMap({
       <div className="map-topline">
         <span className="map-location">
           <Crosshair aria-hidden="true" size={15} />
-          Downtown Miami
+          Miami route
         </span>
-        <span className="map-time">
-          {forecastHours ? `Projected +${forecastHours}h` : "Current field"}
-        </span>
+        <span className="map-time">{dataLabel}</span>
       </div>
 
       <div className="thermal-legend" aria-label="Temperature legend">
@@ -244,7 +279,7 @@ export function HeatMap({
             type="button"
             className={forecastHours === hours ? "is-active" : ""}
             aria-pressed={forecastHours === hours}
-            onClick={() => onForecastChange(hours)}
+            onClick={() => void onForecastChange(hours)}
           >
             {hours === 0 ? "Now" : `+${hours}h`}
           </button>
@@ -252,10 +287,12 @@ export function HeatMap({
       </div>
 
       <div className="map-stops" aria-label="Cooling stops">
-        {COOLING_STOPS.map((stop) => (
+        {coolingSites.map((stop) => (
           <span key={stop.id}>
             <MapPin aria-hidden="true" size={13} />
-            {stop.name}
+            <a href={stop.sourceUrl} target="_blank" rel="noreferrer">
+              {stop.name}
+            </a>
           </span>
         ))}
       </div>

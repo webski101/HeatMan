@@ -42,5 +42,15 @@ export interface RouteAnalysis {
   candidates: RouteCandidate[];
   recommendedRouteId: string;
   generatedAt: string;
-  dataMode: "demo" | "live";
+  dataMode: "demo" | "live" | "verified" | "forecast";
+}
+
+export interface CoolingSite {
+  id: string;
+  name: string;
+  address: string;
+  hours: string;
+  type: string;
+  coordinate: Coordinate;
+  sourceUrl: string;
 }

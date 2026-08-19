@@ -162,6 +162,16 @@ export function projectHeatPoints(
   });
 }
 
+export function shiftHeatPoints(
+  heatPoints: HeatPoint[],
+  deltaC: number,
+): HeatPoint[] {
+  return heatPoints.map((point) => ({
+    ...point,
+    temperatureC: round(point.temperatureC + deltaC, 1),
+  }));
+}
+
 export function riskBand(score: number): RouteCandidate["riskBand"] {
   if (score >= 75) return "critical";
   if (score >= 50) return "high";
