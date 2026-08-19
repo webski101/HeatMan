@@ -254,11 +254,12 @@ export function HeatMap({
         aria-label="Interactive Downtown Miami map"
       />
       {mapFailed && (
-        <DemoMap
+        <DataFallbackMap
           routes={routes}
           selectedRouteId={selectedRouteId}
           onSelectRoute={onSelectRoute}
           forecastHours={forecastHours}
+          heatPoints={heatPoints}
         />
       )}
 
@@ -312,72 +313,178 @@ export function HeatMap({
   );
 }
 
-function DemoMap({
+function DataFallbackMap({
   routes,
   selectedRouteId,
   onSelectRoute,
   forecastHours,
+  heatPoints,
 }: {
   routes: RouteCandidate[];
   selectedRouteId: string;
   onSelectRoute: (routeId: string) => void;
   forecastHours: number;
+  heatPoints: HeatPoint[];
 }) {
+  const projection = createFallbackProjection(routes, heatPoints);
+  const hasFortyGuard = heatPoints.some((point) => point.source === "fortyguard");
+  const sampledHeatPoints = sampleEvenly(heatPoints, 120);
+  const selectedRoute =
+    routes.find((route) => route.id === selectedRouteId) ?? routes[0];
+  const start = selectedRoute?.coordinates[0];
+  const finish = selectedRoute?.coordinates.at(-1);
+  const badge = hasFortyGuard
+    ? forecastHours
+      ? `FORTYGUARD + OPEN-METEO +${forecastHours}H FIELD`
+      : "FORTYGUARD DATA FIELD"
+    : forecastHours
+      ? `OPEN-METEO +${forecastHours}H · SIMULATED BASE`
+      : "SIMULATED STARTER FIELD";
+
   return (
-    <div className="demo-map" aria-label="Simulated Downtown Miami heat map">
+    <div
+      className="demo-map"
+      aria-label={
+        hasFortyGuard
+          ? "FortyGuard Miami heat field with live route geometry"
+          : "Simulated Downtown Miami heat map"
+      }
+    >
       <div className="demo-map__water" />
       <div className="demo-map__street street-a">Biscayne Blvd</div>
       <div className="demo-map__street street-b">NE 2nd Ave</div>
       <div className="demo-map__street street-c">Flagler St</div>
       <div className="demo-map__street street-d">Miami Ave</div>
-      <div className="heat-pocket heat-pocket--one">36.8°</div>
-      <div className="heat-pocket heat-pocket--two">34.9°</div>
-      <div className="heat-pocket heat-pocket--three">31.2°</div>
-      <svg
-        className="demo-routes"
-        viewBox="0 0 900 640"
-        role="img"
-        aria-label="Three thermal-scored route alternatives"
-      >
-        {routes.map((route, index) => {
-          const paths = [
-            "M 160 520 C 260 470, 310 380, 410 320 S 610 220, 760 120",
-            "M 160 520 C 300 430, 370 360, 490 270 S 650 190, 760 120",
-            "M 160 520 C 110 390, 210 260, 360 210 S 600 170, 760 120",
-          ];
-          return (
-            <path
-              key={route.id}
-              className={
-                route.id === selectedRouteId
-                  ? "demo-route is-selected"
-                  : "demo-route"
-              }
-              d={paths[index] ?? paths[0]}
-              tabIndex={0}
-              onClick={() => onSelectRoute(route.id)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  onSelectRoute(route.id);
+      {sampledHeatPoints.map((point) => {
+        const position = projection(point.coordinate);
+        const band =
+          point.temperatureC >= 35
+            ? "hot"
+            : point.temperatureC >= 32
+              ? "warm"
+              : "cool";
+        return (
+          <span
+            key={point.id}
+            className={`fallback-heat-point fallback-heat-point--${band}`}
+            style={{ left: `${position.x}%`, top: `${position.y}%` }}
+            title={`${point.temperatureC}°C ${point.source} temperature`}
+            aria-hidden="true"
+          />
+        );
+      })}
+      {routes.map((route) => {
+        const sampled = sampleEvenly(route.coordinates, 75);
+        const points = sampled.map(projection);
+        const midpoint = points[Math.floor(points.length / 2)];
+        const selected = route.id === selectedRouteId;
+        return (
+          <div key={route.id} className="fallback-route">
+            {points.slice(1).map((point, index) => {
+              const previous = points[index];
+              const width = Math.hypot(
+                point.x - previous.x,
+                point.y - previous.y,
+              );
+              const angle =
+                (Math.atan2(point.y - previous.y, point.x - previous.x) * 180) /
+                Math.PI;
+              return (
+                <span
+                  key={`${route.id}-${index}`}
+                  className={
+                    selected
+                      ? "fallback-route-segment is-selected"
+                      : "fallback-route-segment"
+                  }
+                  style={{
+                    left: `${previous.x}%`,
+                    top: `${previous.y}%`,
+                    width: `${width}%`,
+                    transform: `rotate(${angle}deg)`,
+                  }}
+                  aria-hidden="true"
+                />
+              );
+            })}
+            {midpoint && (
+              <button
+                type="button"
+                className={
+                  selected
+                    ? "fallback-route-choice is-selected"
+                    : "fallback-route-choice"
                 }
-              }}
-            >
-              <title>
-                {route.name}: {route.averageTemperatureC}°C average
-              </title>
-            </path>
-          );
-        })}
-        <circle className="route-stop" cx="160" cy="520" r="8" />
-        <circle className="route-stop route-stop--finish" cx="760" cy="120" r="9" />
-      </svg>
-      <span className="demo-map__label demo-map__label--start">Pickup</span>
-      <span className="demo-map__label demo-map__label--finish">Drop-off</span>
-      <span className="demo-badge">
-        {forecastHours
-          ? `SIMULATED +${forecastHours}H HEAT MODEL`
-          : "SIMULATED HEAT FIELD"}
+                style={{ left: `${midpoint.x}%`, top: `${midpoint.y}%` }}
+                onClick={() => onSelectRoute(route.id)}
+                aria-label={`Select ${route.name}, ${route.averageTemperatureC} degrees average`}
+              >
+                {route.name}
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {start && (
+        <FallbackStop label="Pickup" position={projection(start)} />
+      )}
+      {finish && (
+        <FallbackStop label="Drop-off" position={projection(finish)} finish />
+      )}
+      <span className="demo-badge">{badge}</span>
+      <span className="fallback-map-note">
+        Street tiles unavailable · temperature and route geometry preserved
       </span>
     </div>
+  );
+}
+
+function FallbackStop({
+  label,
+  position,
+  finish = false,
+}: {
+  label: string;
+  position: { x: number; y: number };
+  finish?: boolean;
+}) {
+  return (
+    <span
+      className={finish ? "fallback-stop is-finish" : "fallback-stop"}
+      style={{ left: `${position.x}%`, top: `${position.y}%` }}
+    >
+      <span aria-hidden="true" />
+      <strong>{label}</strong>
+    </span>
+  );
+}
+
+function createFallbackProjection(
+  routes: RouteCandidate[],
+  heatPoints: HeatPoint[],
+) {
+  const coordinates = [
+    ...routes.flatMap((route) => route.coordinates),
+    ...heatPoints.map((point) => point.coordinate),
+  ];
+  const longitudes = coordinates.map(([longitude]) => longitude);
+  const latitudes = coordinates.map(([, latitude]) => latitude);
+  const minimumLongitude = Math.min(...longitudes);
+  const maximumLongitude = Math.max(...longitudes);
+  const minimumLatitude = Math.min(...latitudes);
+  const maximumLatitude = Math.max(...latitudes);
+  const longitudeSpan = maximumLongitude - minimumLongitude || 0.01;
+  const latitudeSpan = maximumLatitude - minimumLatitude || 0.01;
+  return ([longitude, latitude]: [number, number]) => ({
+    x: 8 + ((longitude - minimumLongitude) / longitudeSpan) * 84,
+    y: 8 + ((maximumLatitude - latitude) / latitudeSpan) * 84,
+  });
+}
+
+function sampleEvenly<T>(items: T[], maximum: number): T[] {
+  if (items.length <= maximum) return items;
+  const step = (items.length - 1) / (maximum - 1);
+  return Array.from({ length: maximum }, (_, index) =>
+    items[Math.round(index * step)],
   );
 }

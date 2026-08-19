@@ -599,104 +599,113 @@ a {
   transform: rotate(70deg);
 }
 
-.heat-pocket {
+.fallback-heat-point {
   position: absolute;
   z-index: var(--z-raised);
-  display: grid;
-  width: 7.5rem;
-  height: 7.5rem;
-  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
   border: var(--rule-thin) solid currentColor;
   border-radius: var(--radius-round);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
+  opacity: 0.46;
+  transform: translate(-50%, -50%);
 }
 
-.heat-pocket--one {
-  top: 31%;
-  left: 47%;
+.fallback-heat-point--hot {
   background: color-mix(in oklch, var(--color-heat-high) 28%, transparent);
   color: var(--color-danger);
 }
 
-.heat-pocket--two {
-  right: 13%;
-  bottom: 29%;
-  width: 5.8rem;
-  height: 5.8rem;
+.fallback-heat-point--warm {
   background: color-mix(in oklch, var(--color-heat-warm) 30%, transparent);
   color: var(--color-warning);
 }
 
-.heat-pocket--three {
-  top: 15%;
-  left: 18%;
-  width: 6.4rem;
-  height: 6.4rem;
+.fallback-heat-point--cool {
   background: color-mix(in oklch, var(--color-heat-low) 25%, transparent);
   color: var(--color-success);
 }
 
-.demo-routes {
+.fallback-route-segment {
   position: absolute;
-  z-index: var(--z-raised);
-  inset: 4%;
-  width: 92%;
-  height: 92%;
-  color: var(--color-muted);
-  overflow: visible;
+  z-index: calc(var(--z-raised) + 1);
+  height: 3px;
+  border-radius: var(--radius-round);
+  background: var(--color-muted);
+  opacity: 0.72;
+  transform-origin: 0 50%;
 }
 
-.demo-route {
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 5;
-  opacity: 0.68;
-  cursor: pointer;
-  transition:
-    opacity var(--dur-short) var(--ease-out),
-    stroke-width var(--dur-short) var(--ease-out);
-}
-
-.demo-route.is-selected {
-  color: var(--color-accent);
-  stroke-width: 9;
+.fallback-route-segment.is-selected {
+  z-index: calc(var(--z-raised) + 2);
+  height: 6px;
+  background: var(--color-accent);
   opacity: 1;
 }
 
-.route-stop {
-  fill: var(--color-paper);
-  stroke: var(--color-accent);
-  stroke-width: 4;
-}
-
-.route-stop--finish {
-  fill: var(--color-accent);
-}
-
-.demo-map__label {
+.fallback-route-choice {
   position: absolute;
-  z-index: var(--z-raised);
+  z-index: calc(var(--z-raised) + 3);
+  min-height: 1.6rem;
+  padding-inline: var(--space-xs);
+  border: var(--rule-thin) solid var(--color-rule-2);
+  border-radius: var(--radius-round);
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  transform: translate(-50%, -50%);
+}
+
+.fallback-route-choice.is-selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.fallback-stop {
+  position: absolute;
+  z-index: calc(var(--z-raised) + 4);
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2xs);
+  color: var(--color-ink);
+  font-size: var(--text-xs);
+  transform: translate(-50%, -50%);
+}
+
+.fallback-stop > span {
+  width: 1rem;
+  height: 1rem;
+  border: 3px solid var(--color-accent);
+  border-radius: var(--radius-round);
+  background: var(--color-paper);
+}
+
+.fallback-stop.is-finish > span {
+  background: var(--color-accent);
+}
+
+.fallback-stop strong {
   padding: var(--space-2xs) var(--space-xs);
   border: var(--rule-thin) solid var(--color-rule-2);
   border-radius: var(--radius-xs);
   background: var(--color-paper);
-  color: var(--color-ink);
-  font-size: var(--text-sm);
   font-weight: 600;
 }
 
-.demo-map__label--start {
-  left: 13%;
-  bottom: 12%;
-}
-
-.demo-map__label--finish {
-  top: 12%;
-  right: 11%;
+.fallback-map-note {
+  position: absolute;
+  top: 4.3rem;
+  left: var(--space-md);
+  z-index: calc(var(--z-raised) + 4);
+  max-width: 18rem;
+  padding: var(--space-2xs) var(--space-xs);
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: var(--radius-xs);
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
 }
 
 .demo-badge {

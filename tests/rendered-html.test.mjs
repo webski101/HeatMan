@@ -42,7 +42,7 @@ test("server-renders the HeatMan delivery rider workspace", async () => {
 });
 
 test("keeps secrets server-side, preserves rider mode, and ships the Hallmark system", async () => {
-  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource] =
+  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource, mapSource] =
     await Promise.all([
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
@@ -50,6 +50,7 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../components/HeatManApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/DispatcherDashboard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/HeatMap.tsx", import.meta.url), "utf8"),
     ]);
 
   assert.match(gitignore, /\.env\.\*/);
@@ -63,5 +64,8 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(appSource, /HeatMan agent/);
   assert.match(teamsSource, /Fleet heat command center/);
   assert.match(teamsSource, /Daily fleet exposure/);
+  assert.match(mapSource, /FORTYGUARD \+ OPEN-METEO/);
+  assert.match(mapSource, /temperature and route geometry preserved/);
+  assert.doesNotMatch(mapSource, /SIMULATED \+\$\{forecastHours\}H HEAT MODEL/);
   assert.doesNotMatch(exampleEnv, /api-key:\s*[A-Za-z0-9]/i);
 });
