@@ -60,6 +60,7 @@ type AgentMessage = {
   role: "agent" | "rider";
   text: string;
   action?: string;
+  kind?: "decision" | "selection" | "conversation";
 };
 
 const INITIAL_AGENT_MESSAGE: AgentMessage = {
@@ -67,6 +68,7 @@ const INITIAL_AGENT_MESSAGE: AgentMessage = {
   role: "agent",
   text: "The starter view uses a labeled New York simulation. Enter two NYC stops for live routing, then refresh heat to request current FortyGuard tiles.",
   action: "Selected Cool corridor",
+  kind: "decision",
 };
 
 export function HeatManApp() {
@@ -225,9 +227,9 @@ export function HeatManApp() {
         (route) => route.id === nextAnalysis.recommendedRouteId,
       );
       if (recommendation) {
-        appendAgent(
+        replaceDecisionAgent(
           `Route check complete. ${recommendation.name} is the safest option within the detour limit: ${recommendation.durationMinutes} minutes with a ${recommendation.maximumTemperatureC}°C peak.`,
-          `Selected ${recommendation.name}`,
+          `Recommended ${recommendation.name}`,
         );
       }
     } catch (error) {
@@ -264,7 +266,7 @@ export function HeatManApp() {
         setHeatState("demo");
         setCurrentHeatUnavailable(true);
         rescoreWithHeat(initialHeat, "demo");
-        appendAgent(
+        replaceDecisionAgent(
           "Current FortyGuard tiles are unavailable for this New York hour. I restored the clearly labeled simulated starter field.",
           "Retry current New York heat",
         );
@@ -282,9 +284,9 @@ export function HeatManApp() {
       setForecastFeedback("Choose +1h or +2h for a native FortyGuard forecast.");
       const recommended = rescoreWithHeat(realPoints, "live");
       setHeatState("live");
-      appendAgent(
+      replaceDecisionAgent(
         `Current FortyGuard tiles are in. I rescored every route and selected ${recommended.name}.`,
-        "Live thermal route applied",
+        `Recommended ${recommended.name}`,
       );
     } catch (error) {
       setHeatState("error");
@@ -309,7 +311,11 @@ export function HeatManApp() {
       setHeatLabel(baseHeatLabel);
       setForecastState("idle");
       setForecastFeedback("Showing the current heat field.");
-      rescoreWithHeat(baseHeatPoints, baseHeatMode);
+      const recommended = rescoreWithHeat(baseHeatPoints, baseHeatMode);
+      replaceDecisionAgent(
+        `Current heat restored. ${recommended.name} is the coolest safe route within the detour limit.`,
+        `Recommended ${recommended.name}`,
+      );
       return;
     }
     if (baseHeatMode !== "live" || !baseHeatDateTime || currentHeatUnavailable) {
@@ -342,7 +348,11 @@ export function HeatManApp() {
       setHeatLabel(
         `FortyGuard +${hours}h forecast · ${targetDateTime.date} ${targetDateTime.time} New York time`,
       );
-      rescoreWithHeat(projected, "forecast");
+      const recommended = rescoreWithHeat(projected, "forecast");
+      replaceDecisionAgent(
+        `FortyGuard +${hours}h forecast applied. ${recommended.name} is the coolest safe route within the detour limit.`,
+        `Recommended ${recommended.name}`,
+      );
     } catch (error) {
       setForecastState("error");
       const message =
@@ -401,8 +411,9 @@ export function HeatManApp() {
     if (normalized.includes("fast")) {
       setSelectedRouteId(fastestRoute.id);
       appendAgent(
-        `${fastestRoute.name} saves ${Math.max(0, timeDelta).toFixed(1)} minutes, but its heat load is ${fastestRoute.heatLoad}°C·min. I selected it—watch the exposure panel before starting.`,
+        `${fastestRoute.name} is now selected because you requested the fastest path. HeatMan's safety recommendation remains ${recommendedRoute.name}.`,
         `Selected ${fastestRoute.name}`,
+        "selection",
       );
       return;
     }
@@ -415,6 +426,7 @@ export function HeatManApp() {
       appendAgent(
         `${recommendedRoute.name} is the coolest safe path within 40% of the fastest travel time. It reduces modeled heat load by ${loadReduction}% versus the fastest alternative.`,
         `Selected ${recommendedRoute.name}`,
+        "selection",
       );
       return;
     }
@@ -457,10 +469,44 @@ export function HeatManApp() {
     );
   }
 
-  function appendAgent(text: string, action?: string) {
+  function selectRoute(routeId: string) {
+    const route = analysis.candidates.find((candidate) => candidate.id === routeId);
+    if (!route) return;
+    setSelectedRouteId(route.id);
+    appendAgent(
+      route.id === recommendedRoute.id
+        ? `${route.name} is selected and matches HeatMan's current safety recommendation.`
+        : `${route.name} is selected for review. HeatMan's current safety recommendation remains ${recommendedRoute.name}.`,
+      `Selected ${route.name}`,
+      "selection",
+    );
+  }
+
+  function replaceDecisionAgent(text: string, action?: string) {
     setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), role: "agent", text, action },
+      ...current.filter(
+        (message) => message.kind !== "decision" && message.kind !== "selection",
+      ),
+      {
+        id: crypto.randomUUID(),
+        role: "agent",
+        text,
+        action,
+        kind: "decision",
+      },
+    ]);
+  }
+
+  function appendAgent(
+    text: string,
+    action?: string,
+    kind: AgentMessage["kind"] = "conversation",
+  ) {
+    setMessages((current) => [
+      ...current.filter(
+        (message) => kind === "conversation" || message.kind !== kind,
+      ),
+      { id: crypto.randomUUID(), role: "agent", text, action, kind },
     ]);
   }
 
@@ -665,7 +711,7 @@ export function HeatManApp() {
                     ? "route-option is-selected"
                     : "route-option"
                 }
-                onClick={() => setSelectedRouteId(route.id)}
+                onClick={() => selectRoute(route.id)}
                 aria-pressed={route.id === selectedRouteId}
               >
                 <span className="route-option__main">
@@ -691,7 +737,7 @@ export function HeatManApp() {
           routes={analysis.candidates}
           selectedRouteId={selectedRouteId}
           heatPoints={heatPoints}
-          onSelectRoute={setSelectedRouteId}
+          onSelectRoute={selectRoute}
           forecastHours={forecastHours}
           onForecastChange={changeForecast}
           forecastState={forecastState}

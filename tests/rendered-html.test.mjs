@@ -69,6 +69,9 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(mapSource, /temperature and route geometry preserved/);
   assert.match(appSource, /native FortyGuard \+\$\{hours\}h New York forecast/);
   assert.match(appSource, /fetchFortyGuardHeat\(aoi, targetDateTime\)/);
+  assert.match(appSource, /FortyGuard \+\$\{hours\}h forecast applied/);
+  assert.match(appSource, /message\.kind !== "decision" && message\.kind !== "selection"/);
+  assert.match(appSource, /HeatMan's current safety recommendation remains/);
   assert.doesNotMatch(appSource, /Open-Meteo|fetchOpenMeteoForecast/);
   assert.doesNotMatch(mapSource, /OPEN-METEO/);
   assert.doesNotMatch(mapSource, /SIMULATED \+\$\{forecastHours\}H HEAT MODEL/);
