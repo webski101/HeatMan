@@ -72,6 +72,9 @@ export function DispatcherDashboard({
   const averageRisk = Math.round(
     riders.reduce((total, rider) => total + rider.riskScore, 0) / riders.length,
   );
+  const reportHref = `data:text/csv;charset=utf-8,${encodeURIComponent(
+    buildFleetCsv(riders),
+  )}`;
 
   function updateRider(
     riderId: string,
@@ -152,40 +155,6 @@ export function DispatcherDashboard({
     setActivity((current) => [entry, ...current].slice(0, 5));
   }
 
-  function exportReport() {
-    const header =
-      "rider_id,name,zone,risk_score,risk_band,temperature_c,hot_minutes,alert_state,last_intervention,status";
-    const rows = riders.map((rider) =>
-      [
-        rider.id,
-        rider.name,
-        rider.zone,
-        rider.riskScore,
-        rider.riskBand,
-        rider.temperatureC,
-        rider.hotMinutes,
-        rider.alertState,
-        rider.lastIntervention,
-        rider.status,
-      ]
-        .map(csvCell)
-        .join(","),
-    );
-    const blob = new Blob([[header, ...rows].join("\n")], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "heatman-new-york-fleet-exposure.csv";
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-    addActivity("Daily fleet exposure report exported");
-  }
-
   return (
     <main id="command-center" className="dispatch-shell">
       <section className="dispatch-heading">
@@ -216,10 +185,15 @@ export function DispatcherDashboard({
             <BellRing aria-hidden="true" size={16} />
             Demo alerts {autoAlerts ? "on" : "off"}
           </button>
-          <button type="button" className="secondary-action" onClick={exportReport}>
+          <a
+            className="secondary-action"
+            href={reportHref}
+            download="heatman-new-york-fleet-exposure.csv"
+            onClick={() => addActivity("Daily fleet exposure report exported")}
+          >
             <Download aria-hidden="true" size={16} />
             Export daily report
-          </button>
+          </a>
         </div>
       </section>
 
@@ -552,4 +526,26 @@ function timeByMinutes(time: string, amount: number) {
 function csvCell(value: string | number) {
   const text = String(value);
   return `"${text.replaceAll('"', '""')}"`;
+}
+
+function buildFleetCsv(riders: FleetRider[]) {
+  const header =
+    "rider_id,name,zone,risk_score,risk_band,temperature_c,hot_minutes,alert_state,last_intervention,status";
+  const rows = riders.map((rider) =>
+    [
+      rider.id,
+      rider.name,
+      rider.zone,
+      rider.riskScore,
+      rider.riskBand,
+      rider.temperatureC,
+      rider.hotMinutes,
+      rider.alertState,
+      rider.lastIntervention,
+      rider.status,
+    ]
+      .map(csvCell)
+      .join(","),
+  );
+  return [header, ...rows].join("\n");
 }

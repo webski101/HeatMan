@@ -65,8 +65,8 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(teamsSource, /Fleet heat command center/);
   assert.match(teamsSource, /Daily fleet exposure/);
   assert.match(teamsSource, /heatman-new-york-fleet-exposure\.csv/);
-  assert.match(teamsSource, /document\.body\.appendChild\(link\)/);
-  assert.match(teamsSource, /window\.setTimeout\(\(\) => URL\.revokeObjectURL\(url\), 1_000\)/);
+  assert.match(teamsSource, /data:text\/csv;charset=utf-8/);
+  assert.match(teamsSource, /buildFleetCsv\(riders\)/);
   assert.doesNotMatch(teamsSource, /heatman-miami-fleet-exposure\.csv/);
   assert.match(mapSource, /FORTYGUARD NATIVE/);
   assert.match(mapSource, /\[0, 1, 2\]/);
