@@ -1,7 +1,11 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
+const usesProductionClerk =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_live_") ??
+  false;
+
 export default clerkMiddleware(
-  process.env.VERCEL_ENV === "production"
+  process.env.VERCEL_ENV === "production" && usesProductionClerk
     ? { frontendApiProxy: { enabled: true } }
     : {},
 );
