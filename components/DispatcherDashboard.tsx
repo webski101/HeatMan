@@ -11,13 +11,15 @@ FORM: Established-world Operate extension; command-center staging; no concept se
 because the approved feature set and incumbent surface define the structure.
 */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSession } from "@clerk/nextjs";
 import {
   BellRing,
   Bike,
   CalendarClock,
   Check,
   Clock3,
+  Database,
   Download,
   Filter,
   MapPin,
@@ -31,8 +33,19 @@ import {
   INITIAL_FLEET,
   type FleetRider,
 } from "@/lib/fleet-data";
+import {
+  createFleetSupabaseClient,
+  fleetRiderToRow,
+  fleetRowToRider,
+  isFleetSupabaseConfigured,
+  type FleetActivityRow,
+  type FleetRiderRow,
+  type FleetSupabaseClient,
+  type FleetSyncState,
+} from "@/lib/supabase-fleet";
 
 type DispatcherDashboardProps = {
+  organizationId: string;
   dataMode:
     | "demo"
     | "loading"
@@ -43,11 +56,14 @@ type DispatcherDashboardProps = {
 };
 
 type FleetFilter = "all" | "elevated";
+const fleetSupabaseConfigured = isFleetSupabaseConfigured();
 
 export function DispatcherDashboard({
+  organizationId,
   dataMode,
   onRiderAction,
 }: DispatcherDashboardProps) {
+  const { session } = useSession();
   const [riders, setRiders] = useState(INITIAL_FLEET);
   const [selectedRiderId, setSelectedRiderId] = useState(INITIAL_FLEET[0].id);
   const [fleetFilter, setFleetFilter] = useState<FleetFilter>("all");
@@ -59,6 +75,168 @@ export function DispatcherDashboard({
     "Automatic alert raised for D-091 at 13:42",
     "Cool-route recommendation sent to D-204 at 13:39",
   ]);
+  const [syncState, setSyncState] = useState<FleetSyncState>(() =>
+    fleetSupabaseConfigured ? "connecting" : "demo",
+  );
+  const [syncMessage, setSyncMessage] = useState(() =>
+    fleetSupabaseConfigured
+      ? "Waiting for the signed-in company session."
+      : "Supabase keys are not configured; using the safe demo fleet.",
+  );
+  const fleetClientRef = useRef<FleetSupabaseClient | null>(null);
+
+  useEffect(() => {
+    if (!fleetSupabaseConfigured) {
+      fleetClientRef.current = null;
+      return;
+    }
+
+    if (!session) {
+      fleetClientRef.current = null;
+      return;
+    }
+
+    let disposed = false;
+    let fleetLoaded = false;
+    let realtimeSubscribed = false;
+    const client = createFleetSupabaseClient(() => session.getToken());
+    fleetClientRef.current = client;
+
+    function markLiveWhenReady() {
+      if (!disposed && fleetLoaded && realtimeSubscribed) {
+        setSyncState("live");
+        setSyncMessage("Company fleet records are stored and updating in real time.");
+      }
+    }
+
+    async function loadFleet() {
+      const { data, error } = await client
+        .from("fleet_riders")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("risk_score", { ascending: false });
+
+      if (error) throw error;
+      if (disposed) return;
+
+      let rows = (data ?? []) as FleetRiderRow[];
+      if (rows.length === 0) {
+        const { data: seededData, error: seedError } = await client
+          .from("fleet_riders")
+          .upsert(
+            INITIAL_FLEET.map((rider) =>
+              fleetRiderToRow(organizationId, rider),
+            ),
+            { onConflict: "organization_id,rider_id" },
+          )
+          .select();
+        if (seedError) throw seedError;
+        rows = (seededData ?? []) as FleetRiderRow[];
+      }
+
+      if (!disposed && rows.length > 0) {
+        setRiders(rows.map(fleetRowToRider));
+        setSelectedRiderId((current) =>
+          rows.some((row) => row.rider_id === current)
+            ? current
+            : rows[0].rider_id,
+        );
+      }
+    }
+
+    async function loadActivity() {
+      const { data, error } = await client
+        .from("fleet_activity")
+        .select("id,organization_id,rider_id,message,action_type,created_at")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      if (disposed) return;
+
+      const rows = (data ?? []) as FleetActivityRow[];
+      setActivity(
+        rows.length
+          ? rows.map((row) => row.message)
+          : ["Supabase company workspace connected"],
+      );
+    }
+
+    async function connect() {
+      try {
+        await Promise.all([loadFleet(), loadActivity()]);
+        if (!disposed) {
+          fleetLoaded = true;
+          setSyncMessage("Company fleet records are stored and updating in real time.");
+          markLiveWhenReady();
+        }
+      } catch (error) {
+        if (!disposed) {
+          setSyncState("error");
+          setSyncMessage(fleetSyncErrorMessage(error));
+        }
+      }
+    }
+
+    const channel = client
+      .channel(`heatman-fleet-${organizationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "fleet_riders",
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        () => {
+          void loadFleet().catch((error) => {
+            if (!disposed) {
+              setSyncState("error");
+              setSyncMessage(fleetSyncErrorMessage(error));
+            }
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "fleet_activity",
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        (payload) => {
+          const entry = payload.new as FleetActivityRow;
+          setActivity((current) =>
+            [entry.message, ...current.filter((item) => item !== entry.message)].slice(
+              0,
+              5,
+            ),
+          );
+        },
+      )
+      .subscribe((status) => {
+        if (disposed) return;
+        if (status === "SUBSCRIBED") {
+          realtimeSubscribed = true;
+          markLiveWhenReady();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setSyncState("error");
+          setSyncMessage("Supabase realtime disconnected; saved data remains available.");
+        }
+      });
+
+    void connect();
+
+    return () => {
+      disposed = true;
+      if (fleetClientRef.current === client) {
+        fleetClientRef.current = null;
+      }
+      void client.removeChannel(channel);
+    };
+  }, [organizationId, session]);
 
   const selectedRider =
     riders.find((rider) => rider.id === selectedRiderId) ?? riders[0];
@@ -80,9 +258,27 @@ export function DispatcherDashboard({
     riderId: string,
     update: (rider: FleetRider) => FleetRider,
   ) {
+    const currentRider = riders.find((rider) => rider.id === riderId);
+    if (!currentRider) return;
+    const nextRider = update(currentRider);
     setRiders((current) =>
-      current.map((rider) => (rider.id === riderId ? update(rider) : rider)),
+      current.map((rider) => (rider.id === riderId ? nextRider : rider)),
     );
+    void persistRider(nextRider);
+  }
+
+  async function persistRider(rider: FleetRider) {
+    const client = fleetClientRef.current;
+    if (!client) return;
+    const { error } = await client
+      .from("fleet_riders")
+      .upsert(fleetRiderToRow(organizationId, rider), {
+        onConflict: "organization_id,rider_id",
+      });
+    if (error) {
+      setSyncState("error");
+      setSyncMessage(fleetSyncErrorMessage(error));
+    }
   }
 
   function rerouteSelected() {
@@ -94,6 +290,8 @@ export function DispatcherDashboard({
     }));
     addActivity(
       `Cooler route sent to ${selectedRider.id}; awaiting rider acceptance`,
+      selectedRider.id,
+      "cooler_route",
     );
     onRiderAction?.(
       selectedRider.id,
@@ -108,7 +306,11 @@ export function DispatcherDashboard({
       lastIntervention: "Cooling break sent · awaiting rider",
       status: "Break awaiting rider",
     }));
-    addActivity(`12-minute cooling break sent to ${selectedRider.id}`);
+    addActivity(
+      `12-minute cooling break sent to ${selectedRider.id}`,
+      selectedRider.id,
+      "cooling_break",
+    );
     onRiderAction?.(
       selectedRider.id,
       "Dispatch scheduled a 12-minute cooling break at the next safe stop.",
@@ -122,7 +324,11 @@ export function DispatcherDashboard({
       lastIntervention: "Shift moved +30 min",
       status: "Shift moved +30 min",
     }));
-    addActivity(`${selectedRider.id} shift moved 30 minutes later`);
+    addActivity(
+      `${selectedRider.id} shift moved 30 minutes later`,
+      selectedRider.id,
+      "shift_change",
+    );
     onRiderAction?.(
       selectedRider.id,
       "Dispatch moved this shift 30 minutes later to reduce peak-heat exposure.",
@@ -137,7 +343,11 @@ export function DispatcherDashboard({
       lastIntervention: "Safety message queued",
       status: "Safety message queued",
     }));
-    addActivity(`Demo safety message shown for ${selectedRider.id}; no SMS was sent`);
+    addActivity(
+      `Safety message queued for ${selectedRider.id}; no SMS was sent`,
+      selectedRider.id,
+      "safety_message",
+    );
     onRiderAction?.(selectedRider.id, message.trim());
   }
 
@@ -148,11 +358,37 @@ export function DispatcherDashboard({
       lastIntervention: "Rider acknowledged safety check",
       status: "Safety check acknowledged",
     }));
-    addActivity(`${selectedRider.id} safety alert marked acknowledged`);
+    addActivity(
+      `${selectedRider.id} safety alert marked acknowledged`,
+      selectedRider.id,
+      "alert_acknowledged",
+    );
   }
 
-  function addActivity(entry: string) {
-    setActivity((current) => [entry, ...current].slice(0, 5));
+  function addActivity(
+    entry: string,
+    riderId: string | null = null,
+    actionType = "dispatcher_action",
+  ) {
+    setActivity((current) =>
+      [entry, ...current.filter((item) => item !== entry)].slice(0, 5),
+    );
+    const client = fleetClientRef.current;
+    if (!client) return;
+    void client
+      .from("fleet_activity")
+      .insert({
+        organization_id: organizationId,
+        rider_id: riderId,
+        message: entry,
+        action_type: actionType,
+      })
+      .then(({ error }) => {
+        if (error) {
+          setSyncState("error");
+          setSyncMessage(fleetSyncErrorMessage(error));
+        }
+      });
   }
 
   return (
@@ -160,15 +396,35 @@ export function DispatcherDashboard({
       <section className="dispatch-heading">
         <div>
           <span className="panel-kicker">
-            DEMO OPERATIONS · {dataMode === "live" ? "LIVE HEAT · " : ""}NO LIVE GPS OR SMS
+            {syncState === "live" ? "COMPANY OPERATIONS · SUPABASE REALTIME" : "DEMO OPERATIONS"}
+            {dataMode === "live" ? " · LIVE HEAT" : ""} · ILLUSTRATIVE RIDERS · NO FLEET GPS OR SMS
           </span>
-          <h1>Fleet heat command center preview</h1>
+          <h1>
+            {syncState === "live"
+              ? "Fleet heat command center"
+              : "Fleet heat command center preview"}
+          </h1>
           <p>
-            Explore the dispatcher workflow with illustrative riders. Connect
-            accounts, rider location, and messaging before production use.
+            {syncState === "live"
+              ? "Dispatcher actions are saved to your company workspace and synchronized across open HeatMan sessions."
+              : "Explore the dispatcher workflow with illustrative riders. Connect Supabase to persist and synchronize company operations."}
           </p>
         </div>
         <div className="dispatch-heading__actions">
+          <span
+            className={`fleet-sync fleet-sync--${syncState}`}
+            role="status"
+            title={syncMessage}
+          >
+            <Database aria-hidden="true" size={16} />
+            {syncState === "live"
+              ? "Database live"
+              : syncState === "connecting"
+                ? "Connecting data"
+                : syncState === "error"
+                  ? "Database unavailable"
+                  : "Demo data"}
+          </span>
           <button
             type="button"
             className={autoAlerts ? "auto-alert is-active" : "auto-alert"}
@@ -299,6 +555,7 @@ export function DispatcherDashboard({
           riders={riders}
           selectedRiderId={selectedRider.id}
           onSelectRider={setSelectedRiderId}
+          syncState={syncState}
         />
 
         <aside className="rider-action-panel" aria-label="Selected rider actions">
@@ -424,7 +681,11 @@ export function DispatcherDashboard({
         <article className="exposure-report">
           <div className="section-line">
             <h2>Daily fleet exposure</h2>
-            <span>illustrative shift data</span>
+            <span>
+              {syncState === "live"
+                ? "Supabase company records"
+                : "illustrative shift data"}
+            </span>
           </div>
           <div className="report-table-wrap">
             <table>
@@ -466,10 +727,12 @@ function FleetMap({
   riders,
   selectedRiderId,
   onSelectRider,
+  syncState,
 }: {
   riders: FleetRider[];
   selectedRiderId: string;
   onSelectRider: (riderId: string) => void;
+  syncState: FleetSyncState;
 }) {
   return (
     <section className="fleet-map" aria-label="Illustrative New York fleet heat map">
@@ -483,7 +746,10 @@ function FleetMap({
       <div className="fleet-heat fleet-heat--cool">31.1°</div>
       <div className="fleet-map__heading">
         <span><MapPin aria-hidden="true" size={14} /> New York urban core</span>
-        <span>ILLUSTRATIVE FLEET · NO LIVE GPS</span>
+        <span>
+          {syncState === "live" ? "SUPABASE REALTIME" : "ILLUSTRATIVE FLEET"}
+          {" · NO LIVE GPS"}
+        </span>
       </div>
       {riders.map((rider) => (
         <button
@@ -548,4 +814,15 @@ function buildFleetCsv(riders: FleetRider[]) {
       .join(","),
   );
   return [header, ...rows].join("\n");
+}
+
+function fleetSyncErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/relation .* does not exist|fleet_riders/i.test(message)) {
+    return "Supabase is connected, but the HeatMan fleet migration has not been run.";
+  }
+  if (/row-level security|permission denied|jwt|unauthorized/i.test(message)) {
+    return "Supabase rejected the company session. Check the Clerk Third-Party Auth connection and RLS migration.";
+  }
+  return "Supabase data could not be synchronized; HeatMan kept the local fleet available.";
 }

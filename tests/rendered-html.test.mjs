@@ -51,7 +51,7 @@ test("server-renders the HeatMan delivery rider workspace", async () => {
 });
 
 test("keeps secrets server-side, preserves rider mode, and ships the Hallmark system", async () => {
-  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource, mapSource, layoutSource, proxySource] =
+  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource, mapSource, layoutSource, proxySource, supabaseSource, supabaseMigration] =
     await Promise.all([
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
@@ -62,6 +62,14 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
     readFile(new URL("../components/HeatMap.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/supabase-fleet.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL(
+        "../supabase/migrations/202608200001_heatman_fleet.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
     ]);
 
   assert.match(gitignore, /\.env\.\*/);
@@ -69,11 +77,15 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(exampleEnv, /OPENROUTESERVICE_API_KEY=/);
   assert.match(exampleEnv, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=/);
   assert.match(exampleEnv, /CLERK_SECRET_KEY=/);
+  assert.match(exampleEnv, /NEXT_PUBLIC_SUPABASE_URL=/);
+  assert.match(exampleEnv, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/);
+  assert.doesNotMatch(exampleEnv, /SUPABASE_SERVICE_ROLE_KEY=/);
   assert.doesNotMatch(exampleEnv, /MAPBOX_ACCESS_TOKEN=/);
   assert.match(tokens, /Hallmark · macrostructure: Workbench/);
   assert.match(tokens, /--color-accent:/);
   assert.match(packageJson, /"build": "vinext build"/);
   assert.match(packageJson, /"@clerk\/nextjs"/);
+  assert.match(packageJson, /"@supabase\/supabase-js"/);
   assert.match(appSource, /ACTIVE DELIVERY/);
   assert.match(appSource, /HeatMan agent/);
   assert.match(appSource, /Sign in or create account/);
@@ -92,6 +104,14 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(teamsSource, /heatman-new-york-fleet-exposure\.csv/);
   assert.match(teamsSource, /data:text\/csv;charset=utf-8/);
   assert.match(teamsSource, /buildFleetCsv\(riders\)/);
+  assert.match(teamsSource, /createFleetSupabaseClient/);
+  assert.match(teamsSource, /postgres_changes/);
+  assert.match(teamsSource, /SUPABASE REALTIME/);
+  assert.match(supabaseSource, /accessToken: getAccessToken/);
+  assert.match(supabaseSource, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(supabaseMigration, /enable row level security/i);
+  assert.match(supabaseMigration, /coalesce\(auth\.jwt\(\)->>'org_id', auth\.jwt\(\)->'o'->>'id'\)/);
+  assert.match(supabaseMigration, /supabase_realtime/);
   assert.doesNotMatch(teamsSource, /heatman-miami-fleet-exposure\.csv/);
   assert.match(mapSource, /FORTYGUARD NATIVE/);
   assert.match(mapSource, /\[0, 1, 2\]/);

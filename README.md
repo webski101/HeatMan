@@ -25,7 +25,8 @@ simulation rather than presenting historical data as live.
 - Deterministic natural-language decision agent for route and safety actions
 - Current, +1 hour, and +2 hour native FortyGuard heat fields
 - Official-library indoor cooling options near the destination
-- Clearly labeled Teams workflow preview (no live fleet GPS or outbound SMS yet)
+- Clerk-protected Teams workspace with optional Supabase persistence and realtime
+  synchronization (illustrative riders; no live fleet GPS or outbound SMS yet)
 
 ## Run locally
 
@@ -44,8 +45,32 @@ Use `npm.cmd test` for the production build and server-render checks.
 
 - `FORTYGUARD_API_KEY` — server-side FortyGuard requests
 - `OPENROUTESERVICE_API_KEY` — server-side walking/cycling Directions requests
+- `NEXT_PUBLIC_SUPABASE_URL` — public Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — public Supabase browser key; access is
+  protected by Clerk session tokens and Row Level Security
 
 MapLibre and OpenFreeMap do not require credentials.
+
+## Supabase company fleet setup
+
+HeatMan uses Clerk for accounts and Supabase for organization-scoped fleet
+records and realtime updates. The app never needs a Supabase service-role key.
+
+1. Create a free Supabase project.
+2. In Clerk, enable the native Supabase integration and copy the Clerk instance
+   domain it provides.
+3. In Supabase, open **Authentication → Sign In / Providers**, add Clerk as a
+   Third-Party Auth provider, and paste that Clerk domain.
+4. In the Supabase SQL Editor, run
+   `supabase/migrations/202608200001_heatman_fleet.sql`.
+5. Copy the Supabase project URL and publishable key into `.env.local` using the
+   names shown in `.env.example`. Add the same two variables to Vercel for
+   Production and Preview, then redeploy.
+
+The first signed-in organization seeds the explicitly illustrative starter
+fleet into its own rows. Dispatcher changes then persist and synchronize across
+open Teams sessions through Supabase Realtime. Row Level Security prevents one
+Clerk organization from reading or changing another organization’s records.
 
 ## New York API probe
 

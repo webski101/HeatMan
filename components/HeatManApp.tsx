@@ -713,7 +713,7 @@ export function HeatManApp() {
             onClick={() => setSurface("teams")}
           >
             <LayoutDashboard aria-hidden="true" size={16} />
-            Teams demo
+            Teams
           </button>
         </nav>
         <div className="topbar__status">
@@ -1243,6 +1243,7 @@ function TeamsWorkspace({
 
   return (
     <DispatcherDashboard
+      organizationId={organization.id}
       dataMode={dataMode}
       onRiderAction={onRiderAction}
     />

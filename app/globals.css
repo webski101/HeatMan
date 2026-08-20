@@ -1442,6 +1442,38 @@ a {
   gap: var(--space-xs);
 }
 
+.fleet-sync {
+  display: inline-flex;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding-inline: var(--space-md);
+  border: var(--rule-thin) solid var(--color-rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.fleet-sync--live {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.fleet-sync--connecting {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.fleet-sync--error {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
 .auto-alert,
 .secondary-action {
   display: inline-flex;
