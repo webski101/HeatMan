@@ -43,6 +43,11 @@ import {
   type FleetSupabaseClient,
   type FleetSyncState,
 } from "@/lib/supabase-fleet";
+import {
+  firebasePushErrorMessage,
+  isFirebasePushConfigured,
+  registerHeatManPush,
+} from "@/lib/firebase-push";
 
 type DispatcherDashboardProps = {
   organizationId: string;
@@ -56,7 +61,9 @@ type DispatcherDashboardProps = {
 };
 
 type FleetFilter = "all" | "elevated";
+type PushState = "unavailable" | "idle" | "enabling" | "ready" | "sending" | "error";
 const fleetSupabaseConfigured = isFleetSupabaseConfigured();
+const firebasePushConfigured = isFirebasePushConfigured();
 
 export function DispatcherDashboard({
   organizationId,
@@ -83,7 +90,23 @@ export function DispatcherDashboard({
       ? "Waiting for the signed-in company session."
       : "Supabase keys are not configured; using the safe demo fleet.",
   );
+  const [pushState, setPushState] = useState<PushState>(() =>
+    firebasePushConfigured ? "idle" : "unavailable",
+  );
+  const [pushMessage, setPushMessage] = useState(() =>
+    firebasePushConfigured
+      ? "Enable real Firebase notifications on this browser."
+      : "Firebase keys are not configured yet.",
+  );
   const fleetClientRef = useRef<FleetSupabaseClient | null>(null);
+  const pushInstallationIdRef = useRef<string | null>(null);
+  const stopForegroundMessagesRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      stopForegroundMessagesRef.current?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (!fleetSupabaseConfigured) {
@@ -391,6 +414,83 @@ export function DispatcherDashboard({
       });
   }
 
+  async function enablePushAlerts() {
+    const client = fleetClientRef.current;
+    if (!client || syncState !== "live") {
+      setPushState("error");
+      setPushMessage("Connect the company database before enabling push alerts.");
+      return;
+    }
+
+    setPushState("enabling");
+    setPushMessage("Waiting for browser notification permission…");
+
+    try {
+      const registration = await registerHeatManPush();
+      const { error } = await client.from("push_installations").upsert(
+        {
+          organization_id: organizationId,
+          installation_id: registration.installationId,
+          device_label: "HeatMan web browser",
+          last_seen_at: new Date().toISOString(),
+        },
+        { onConflict: "organization_id,installation_id" },
+      );
+      if (error) throw error;
+
+      stopForegroundMessagesRef.current?.();
+      stopForegroundMessagesRef.current = registration.stopForegroundMessages;
+      pushInstallationIdRef.current = registration.installationId;
+      setPushState("ready");
+      setPushMessage("Real Firebase push alerts are enabled on this browser.");
+      addActivity("Real Firebase push alerts enabled on this browser", null, "push_enabled");
+    } catch (error) {
+      setPushState("error");
+      setPushMessage(
+        /push_installations|relation .* does not exist/i.test(String(error))
+          ? "Run the HeatMan push-installations migration in Supabase."
+          : firebasePushErrorMessage(error),
+      );
+    }
+  }
+
+  async function sendTestPush() {
+    const installationId = pushInstallationIdRef.current;
+    if (!installationId) {
+      await enablePushAlerts();
+      return;
+    }
+
+    setPushState("sending");
+    setPushMessage("Sending a real Firebase test notification…");
+
+    try {
+      const response = await fetch("/api/push/test", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ installationId }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        delivered?: boolean;
+        message?: string;
+      };
+      if (!response.ok || !payload.delivered) {
+        throw new Error(payload.message ?? "Firebase did not accept the notification.");
+      }
+
+      setPushState("ready");
+      setPushMessage("Firebase accepted the notification for this browser.");
+      addActivity("Real Firebase test push sent to this browser", null, "push_test");
+    } catch (error) {
+      setPushState("error");
+      setPushMessage(
+        error instanceof Error
+          ? error.message
+          : "HeatMan could not send the test notification.",
+      );
+    }
+  }
+
   return (
     <main id="command-center" className="dispatch-shell">
       <section className="dispatch-heading">
@@ -425,6 +525,26 @@ export function DispatcherDashboard({
                   ? "Database unavailable"
                   : "Demo data"}
           </span>
+          <button
+            type="button"
+            className={`push-control push-control--${pushState}`}
+            title={pushMessage}
+            disabled={pushState === "unavailable" || pushState === "enabling" || pushState === "sending"}
+            onClick={() => {
+              void (pushState === "ready" ? sendTestPush() : enablePushAlerts());
+            }}
+          >
+            <BellRing aria-hidden="true" size={16} />
+            {pushState === "ready"
+              ? "Send test push"
+              : pushState === "enabling"
+                ? "Enabling push…"
+                : pushState === "sending"
+                  ? "Sending push…"
+                  : pushState === "unavailable"
+                    ? "Push setup pending"
+                    : "Enable push alerts"}
+          </button>
           <button
             type="button"
             className={autoAlerts ? "auto-alert is-active" : "auto-alert"}

@@ -51,7 +51,7 @@ test("server-renders the HeatMan delivery rider workspace", async () => {
 });
 
 test("keeps secrets server-side, preserves rider mode, and ships the Hallmark system", async () => {
-  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource, mapSource, layoutSource, proxySource, supabaseSource, supabaseMigration] =
+  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource, mapSource, layoutSource, proxySource, supabaseSource, supabaseMigration, firebaseClientSource, firebaseAdminSource, pushRouteSource, pushWorkerSource, pushMigration] =
     await Promise.all([
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
@@ -70,6 +70,17 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
       ),
       "utf8",
     ),
+    readFile(new URL("../lib/firebase-push.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/firebase-admin.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/push/test/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../public/firebase-messaging-sw.js", import.meta.url), "utf8"),
+    readFile(
+      new URL(
+        "../supabase/migrations/202608200002_push_installations.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
     ]);
 
   assert.match(gitignore, /\.env\.\*/);
@@ -79,6 +90,9 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(exampleEnv, /CLERK_SECRET_KEY=/);
   assert.match(exampleEnv, /NEXT_PUBLIC_SUPABASE_URL=/);
   assert.match(exampleEnv, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/);
+  assert.match(exampleEnv, /NEXT_PUBLIC_FIREBASE_VAPID_KEY=/);
+  assert.match(exampleEnv, /FIREBASE_CLIENT_EMAIL=/);
+  assert.match(exampleEnv, /FIREBASE_PRIVATE_KEY=/);
   assert.doesNotMatch(exampleEnv, /SUPABASE_SERVICE_ROLE_KEY=/);
   assert.doesNotMatch(exampleEnv, /MAPBOX_ACCESS_TOKEN=/);
   assert.match(tokens, /Hallmark · macrostructure: Workbench/);
@@ -86,6 +100,8 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(packageJson, /"build": "vinext build"/);
   assert.match(packageJson, /"@clerk\/nextjs"/);
   assert.match(packageJson, /"@supabase\/supabase-js"/);
+  assert.match(packageJson, /"firebase"/);
+  assert.match(packageJson, /"firebase-admin"/);
   assert.match(appSource, /ACTIVE DELIVERY/);
   assert.match(appSource, /HeatMan agent/);
   assert.match(appSource, /Sign in or create account/);
@@ -109,11 +125,29 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(teamsSource, /createFleetSupabaseClient/);
   assert.match(teamsSource, /postgres_changes/);
   assert.match(teamsSource, /SUPABASE REALTIME/);
+  assert.match(teamsSource, /Enable push alerts/);
+  assert.match(teamsSource, /Send test push/);
+  assert.match(teamsSource, /push_installations/);
+  assert.match(teamsSource, /\/api\/push\/test/);
   assert.match(supabaseSource, /accessToken: getAccessToken/);
   assert.match(supabaseSource, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
   assert.match(supabaseMigration, /enable row level security/i);
   assert.match(supabaseMigration, /coalesce\(auth\.jwt\(\)->>'org_id', auth\.jwt\(\)->'o'->>'id'\)/);
   assert.match(supabaseMigration, /supabase_realtime/);
+  assert.match(firebaseClientSource, /onRegistered/);
+  assert.match(firebaseClientSource, /firebaseMessagingSdk\.register/);
+  assert.match(firebaseClientSource, /import\("firebase\/messaging"\)/);
+  assert.match(firebaseClientSource, /Notification\.requestPermission/);
+  assert.match(firebaseAdminSource, /import\("firebase-admin\/messaging"\)/);
+  assert.match(firebaseAdminSource, /FIREBASE_PRIVATE_KEY/);
+  assert.match(pushRouteSource, /await auth\(\)/);
+  assert.match(pushRouteSource, /\.eq\("user_id", userId\)/);
+  assert.match(pushRouteSource, /fid: installationId/);
+  assert.match(pushWorkerSource, /onBackgroundMessage/);
+  assert.match(pushWorkerSource, /notificationclick/);
+  assert.match(pushMigration, /push_installations/);
+  assert.match(pushMigration, /enable row level security/i);
+  assert.match(pushMigration, /user_id = \(select auth\.jwt\(\)->>'sub'\)/);
   assert.doesNotMatch(teamsSource, /heatman-miami-fleet-exposure\.csv/);
   assert.match(mapSource, /FORTYGUARD NATIVE/);
   assert.match(mapSource, /\[0, 1, 2\]/);

@@ -1475,6 +1475,7 @@ a {
 }
 
 .auto-alert,
+.push-control,
 .secondary-action {
   display: inline-flex;
   min-height: var(--control-height);
@@ -1487,6 +1488,24 @@ a {
   background: var(--color-paper);
   color: var(--color-ink-2);
   font-weight: 600;
+}
+
+.push-control--ready {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.push-control--enabling,
+.push-control--sending {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.push-control--error {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 
 .auto-alert.is-active {
