@@ -177,9 +177,12 @@ export function DispatcherDashboard({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "heatman-miami-fleet-exposure.csv";
+    link.download = "heatman-new-york-fleet-exposure.csv";
+    link.style.display = "none";
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
     addActivity("Daily fleet exposure report exported");
   }
 
