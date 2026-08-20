@@ -5,7 +5,7 @@ THESIS: Fleet heat risk becomes a live dispatch queue, not a passive weather lay
 OWN-WORLD: Inherit HeatMan's cobalt workbench, ruled panels, compact data labels,
 and street-map field with semantic risk colors.
 STORY: See who is exposed, understand why, intervene, then verify the fleet result.
-FIRST VIEWPORT: Fleet roster left, shared Miami map center, selected-rider action
+FIRST VIEWPORT: Fleet roster left, shared New York map center, selected-rider action
 rail right; critical alerts are visible before scrolling.
 FORM: Established-world Operate extension; command-center staging; no concept seed
 because the approved feature set and incumbent surface define the structure.
@@ -37,7 +37,6 @@ type DispatcherDashboardProps = {
     | "demo"
     | "loading"
     | "live"
-    | "verified"
     | "forecast"
     | "error";
   onRiderAction?: (riderId: string, action: string) => void;
@@ -496,17 +495,17 @@ function FleetMap({
   onSelectRider: (riderId: string) => void;
 }) {
   return (
-    <section className="fleet-map" aria-label="Illustrative Miami fleet heat map">
+    <section className="fleet-map" aria-label="Illustrative New York fleet heat map">
       <div className="fleet-map__water" />
-      <span className="fleet-street fleet-street--one">Biscayne Blvd</span>
-      <span className="fleet-street fleet-street--two">Flagler St</span>
-      <span className="fleet-street fleet-street--three">Miami Ave</span>
-      <span className="fleet-street fleet-street--four">I-395</span>
+      <span className="fleet-street fleet-street--one">Broadway</span>
+      <span className="fleet-street fleet-street--two">Canal St</span>
+      <span className="fleet-street fleet-street--three">Atlantic Ave</span>
+      <span className="fleet-street fleet-street--four">Flatbush Ave</span>
       <div className="fleet-heat fleet-heat--critical">38.1°</div>
       <div className="fleet-heat fleet-heat--high">36.7°</div>
       <div className="fleet-heat fleet-heat--cool">31.1°</div>
       <div className="fleet-map__heading">
-        <span><MapPin aria-hidden="true" size={14} /> Miami urban core</span>
+        <span><MapPin aria-hidden="true" size={14} /> New York urban core</span>
         <span>ILLUSTRATIVE FLEET · NO LIVE GPS</span>
       </div>
       {riders.map((rider) => (

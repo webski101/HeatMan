@@ -1,20 +1,20 @@
 # HeatMan
 
 HeatMan is a heat-aware navigation and safety system for delivery riders and
-their dispatch teams in Miami. It compares OpenRouteService walking/cycling alternatives
+their dispatch teams in New York City. It compares OpenRouteService walking/cycling alternatives
 against FortyGuard temperature tiles, scores cumulative exposure, selects the
 coolest safe route, and turns the result into concrete hydration, rest, timing,
 alert, and dispatch actions.
 
-The starter screen is a clearly labeled Miami simulation. With the configured
+The starter screen is a clearly labeled New York simulation. With the configured
 keys, address search and routing use OpenRouteService, heat requests use
-FortyGuard, and the +1/+3 hour controls use Open-Meteo forecast data. If a
-current FortyGuard query has no tiles, the app can fall back to a clearly dated,
-verified Miami heat-event field rather than presenting historical data as live.
+FortyGuard, and the +1/+2 hour controls request native FortyGuard forecast
+heatmaps. If a current query has no tiles, the app returns to a clearly labeled
+simulation rather than presenting historical data as live.
 
 ## Product capabilities
 
-- OpenRouteService Miami address search plus cycling and walking alternatives
+- OpenRouteService New York City address search plus cycling and walking alternatives
 - MapLibre interactive map with OpenFreeMap street tiles
 - FortyGuard asynchronous heatmap submission and result polling
 - Thermal-cost route scoring in °C·min
@@ -23,8 +23,8 @@ verified Miami heat-event field rather than presenting historical data as live.
 - Cool-route recommendation with a bounded detour
 - Hydration/rest plan and route-aware rider risk guidance
 - Deterministic natural-language decision agent for route and safety actions
-- Current, +1 hour, and +3 hour Open-Meteo-adjusted heat fields
-- Official Miami-Dade cooling-site recommendations near the destination
+- Current, +1 hour, and +2 hour native FortyGuard heat fields
+- Official-library indoor cooling options near the destination
 - Clearly labeled Teams workflow preview (no live fleet GPS or outbound SMS yet)
 
 ## Run locally
@@ -47,21 +47,21 @@ Use `npm.cmd test` for the production build and server-render checks.
 
 MapLibre and OpenFreeMap do not require credentials.
 
-## Miami API probe
+## New York API probe
 
 The first integration gate is a live heatmap request for a compact
-Downtown Miami AOI. It uses the highest spatial resolution currently
+Lower Manhattan AOI. It uses the highest spatial resolution currently
 documented by FortyGuard (60 m), polls the asynchronous status endpoint, and
 reports tile density and returned property fields.
 
 Run:
 
    ```powershell
- npm.cmd run probe:miami
+ npm.cmd run probe:new-york
    ```
 
 The raw completed response is written to
-`artifacts/fortyguard-miami-probe.json`, which is ignored by Git.
+`artifacts/fortyguard-new-york-probe.json`, which is ignored by Git.
 
 ## Confirmed FortyGuard API contract
 

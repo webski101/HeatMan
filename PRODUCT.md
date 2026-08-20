@@ -8,7 +8,7 @@ web
 
 ## Users
 
-The MVP serves delivery riders and gig couriers working outdoors in Miami. The
+The MVP serves delivery riders and gig couriers working outdoors in New York City. The
 buying and operating user is a delivery-company dispatcher or fleet safety lead
 who monitors multiple riders, intervenes when heat risk rises, and reviews fleet
 exposure.
@@ -29,15 +29,15 @@ and cumulative exposure.
 ## Operating Context
 
 The flagship journey starts with a delivery route between two stops inside a
-shift window. HeatMan compares Mapbox route alternatives, selects the coolest
+shift window. HeatMan compares OpenRouteService alternatives, selects the coolest
 safe path, estimates cumulative exposure, and recommends hydration or rest
-breaks. The dispatcher view monitors multiple active riders on one Miami map.
+breaks. The dispatcher view monitors multiple active riders on one New York map.
 
 ## Capabilities and Constraints
 
 - FortyGuard heatmap requests are asynchronous and use a polygon area of
   interest, date/time, and meter granularity.
-- Mapbox Directions alternatives provide candidate cycling or walking routes.
+- OpenRouteService alternatives provide candidate cycling or walking routes.
 - Live credentials remain server-side or in `.env.local` and are never committed.
 - The app must remain useful in a clearly labeled simulation when live API keys
   are unavailable.
@@ -52,7 +52,7 @@ workbench: direct, calm, and specific about risk without using alarmist copy.
 
 ## Evidence on Hand
 
-The repository contains a working Miami rider route demonstration, thermal
+The repository contains a working New York rider route demonstration, thermal
 scoring logic, FortyGuard and OpenRouteService adapters, a simulated heat field, and a
 deployed private web app. No customer claims, clinical validation, or production
 fleet integrations are established and must not be fabricated.

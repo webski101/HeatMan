@@ -6,5 +6,6 @@ artifacts/
 dist/
 .next/
 .wrangler/
+.playwright-cli/
 *.tsbuildinfo
 .DS_Store

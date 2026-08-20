@@ -12,7 +12,7 @@
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "probe:miami": "node --env-file-if-exists=.env.local scripts/probe-fortyguard.mjs"
+    "probe:new-york": "node --env-file-if-exists=.env.local scripts/probe-fortyguard.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",

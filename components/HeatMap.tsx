@@ -17,7 +17,6 @@ interface HeatMapProps {
   forecastDisabledReason?: string;
   coolingSites: CoolingSite[];
   dataLabel: string;
-  baseHeatMode: "demo" | "live" | "verified";
 }
 
 export function HeatMap({
@@ -32,7 +31,6 @@ export function HeatMap({
   forecastDisabledReason,
   coolingSites,
   dataLabel,
-  baseHeatMode,
 }: HeatMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -59,6 +57,17 @@ export function HeatMap({
     [routes, selectedRouteId],
   );
 
+  const thermalRange = useMemo(() => {
+    const temperatures = heatPoints.map((point) => point.temperatureC);
+    const minimum = temperatures.length ? Math.min(...temperatures) : 29;
+    const maximum = temperatures.length ? Math.max(...temperatures) : 38;
+    return {
+      minimum,
+      maximum,
+      spread: Math.max(0.1, maximum - minimum),
+    };
+  }, [heatPoints]);
+
   const heatGeoJson = useMemo(
     () => ({
       type: "FeatureCollection" as const,
@@ -66,7 +75,11 @@ export function HeatMap({
         type: "Feature" as const,
         properties: {
           temperature: point.temperatureC,
-          weight: Math.max(0.2, (point.temperatureC - 28) / 10),
+          weight:
+            0.2 +
+            ((point.temperatureC - thermalRange.minimum) /
+              thermalRange.spread) *
+              0.8,
         },
         geometry: {
           type: "Point" as const,
@@ -74,7 +87,7 @@ export function HeatMap({
         },
       })),
     }),
-    [heatPoints],
+    [heatPoints, thermalRange],
   );
   const coolingGeoJson = useMemo(
     () => ({
@@ -118,8 +131,8 @@ export function HeatMap({
         const map = new maplibre.Map({
           container: containerRef.current,
           style: "https://tiles.openfreemap.org/styles/liberty",
-          center: [-80.192, 25.779],
-          zoom: 13.7,
+          center: [-73.9855, 40.72],
+          zoom: 12.2,
           attributionControl: { compact: true },
         });
         mapRef.current = map;
@@ -250,12 +263,12 @@ export function HeatMap({
   }, [coolingGeoJson, heatGeoJson, mapReady, routeGeoJson, routes, selectedRouteId]);
 
   return (
-    <section className="map-panel" aria-label="Miami thermal route map">
+    <section className="map-panel" aria-label="New York City thermal route map">
       <div
         ref={containerRef}
         className="maplibre-surface"
         hidden={mapFailed}
-        aria-label="Interactive Downtown Miami map"
+        aria-label="Interactive New York City map"
       />
       {mapFailed && (
         <DataFallbackMap
@@ -264,26 +277,25 @@ export function HeatMap({
           onSelectRoute={onSelectRoute}
           forecastHours={forecastHours}
           heatPoints={heatPoints}
-          baseHeatMode={baseHeatMode}
         />
       )}
 
       <div className="map-topline">
         <span className="map-location">
           <Crosshair aria-hidden="true" size={15} />
-          Miami route
+          New York route
         </span>
         <span className="map-time">{dataLabel}</span>
       </div>
 
       <div className="thermal-legend" aria-label="Temperature legend">
-        <span>29°C</span>
+        <span>{thermalRange.minimum.toFixed(1)}°C</span>
         <span className="thermal-scale" aria-hidden="true" />
-        <span>38°C</span>
+        <span>{thermalRange.maximum.toFixed(1)}°C</span>
       </div>
 
       <div className="forecast-control" aria-label="Heat forecast horizon">
-        {[0, 1, 3].map((hours) => (
+        {[0, 1, 2].map((hours) => (
           <button
             key={hours}
             type="button"
@@ -328,52 +340,61 @@ function DataFallbackMap({
   onSelectRoute,
   forecastHours,
   heatPoints,
-  baseHeatMode,
 }: {
   routes: RouteCandidate[];
   selectedRouteId: string;
   onSelectRoute: (routeId: string) => void;
   forecastHours: number;
   heatPoints: HeatPoint[];
-  baseHeatMode: "demo" | "live" | "verified";
 }) {
   const projection = createFallbackProjection(routes, heatPoints);
   const hasFortyGuard = heatPoints.some((point) => point.source === "fortyguard");
   const sampledHeatPoints = sampleEvenly(heatPoints, 120);
+  const temperatures = heatPoints.map((point) => point.temperatureC);
+  const minimumTemperature = temperatures.length
+    ? Math.min(...temperatures)
+    : 29;
+  const maximumTemperature = temperatures.length
+    ? Math.max(...temperatures)
+    : 38;
+  const temperatureSpread = Math.max(
+    0.1,
+    maximumTemperature - minimumTemperature,
+  );
   const selectedRoute =
     routes.find((route) => route.id === selectedRouteId) ?? routes[0];
   const start = selectedRoute?.coordinates[0];
   const finish = selectedRoute?.coordinates.at(-1);
-  const badge = baseHeatMode === "verified"
-    ? "FORTYGUARD VERIFIED 2025 FIELD"
-    : hasFortyGuard
-      ? forecastHours
-        ? `FORTYGUARD + OPEN-METEO +${forecastHours}H FIELD`
-        : "FORTYGUARD LIVE DATA FIELD"
-      : forecastHours
-        ? `OPEN-METEO +${forecastHours}H · SIMULATED BASE`
-        : "SIMULATED STARTER FIELD";
+  const badge = hasFortyGuard
+    ? forecastHours
+      ? `FORTYGUARD NATIVE +${forecastHours}H FORECAST`
+      : "FORTYGUARD LIVE DATA FIELD"
+    : forecastHours
+      ? `SIMULATED +${forecastHours}H SCENARIO`
+      : "SIMULATED STARTER FIELD";
 
   return (
     <div
       className="demo-map"
       aria-label={
         hasFortyGuard
-          ? "FortyGuard Miami heat field with live route geometry"
-          : "Simulated Downtown Miami heat map"
+          ? "FortyGuard New York heat field with live route geometry"
+          : "Simulated New York City heat map"
       }
     >
       <div className="demo-map__water" />
-      <div className="demo-map__street street-a">Biscayne Blvd</div>
-      <div className="demo-map__street street-b">NE 2nd Ave</div>
-      <div className="demo-map__street street-c">Flagler St</div>
-      <div className="demo-map__street street-d">Miami Ave</div>
+      <div className="demo-map__street street-a">Atlantic Ave</div>
+      <div className="demo-map__street street-b">Broadway</div>
+      <div className="demo-map__street street-c">Canal St</div>
+      <div className="demo-map__street street-d">5th Ave</div>
       {sampledHeatPoints.map((point) => {
         const position = projection(point.coordinate);
+        const relativeHeat =
+          (point.temperatureC - minimumTemperature) / temperatureSpread;
         const band =
-          point.temperatureC >= 35
+          relativeHeat >= 0.67
             ? "hot"
-            : point.temperatureC >= 32
+            : relativeHeat >= 0.34
               ? "warm"
               : "cool";
         return (

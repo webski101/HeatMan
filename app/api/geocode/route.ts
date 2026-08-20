@@ -13,19 +13,19 @@ export async function POST(request: Request) {
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (text.length < 3 || text.length > 180) {
     return Response.json(
-      { error: true, message: "Enter a complete Miami pickup or drop-off." },
+      { error: true, message: "Enter a complete New York City pickup or drop-off." },
       { status: 400 },
     );
   }
 
   const params = new URLSearchParams({
-    text: `${text}, Miami, Florida`,
+    text: `${text}, New York City, New York`,
     size: "5",
     "boundary.country": "US",
-    "boundary.rect.min_lon": "-80.35",
-    "boundary.rect.max_lon": "-80.05",
-    "boundary.rect.min_lat": "25.60",
-    "boundary.rect.max_lat": "25.90",
+    "boundary.rect.min_lon": "-74.2591",
+    "boundary.rect.max_lon": "-73.7002",
+    "boundary.rect.min_lat": "40.4774",
+    "boundary.rect.max_lat": "40.9176",
   });
   const response = await fetch(`${GEOCODE_URL}?${params}`, {
     headers: { Authorization: apiKey, Accept: "application/json" },
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
   if (!matches.length) {
     return Response.json(
-      { error: true, message: `No Miami match was found for “${text}”.` },
+      { error: true, message: `No New York City match was found for “${text}”.` },
       { status: 404 },
     );
   }

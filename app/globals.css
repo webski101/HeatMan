@@ -167,10 +167,6 @@ a {
   background: var(--color-success);
 }
 
-.source-chip--verified .source-chip__dot {
-  background: var(--color-warning);
-}
-
 .source-chip--forecast .source-chip__dot {
   background: var(--color-accent);
 }

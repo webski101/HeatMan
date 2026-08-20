@@ -11,25 +11,25 @@ const POLL_TIMEOUT_MS = positiveInteger(
   300_000,
 );
 
-// Roughly 1.4 km² across Downtown Miami and the north edge of Brickell.
+// Compact Lower Manhattan AOI based on FortyGuard's documented example.
 // GeoJSON coordinates are [longitude, latitude].
-const MIAMI_AOI = {
+const NEW_YORK_AOI = {
   type: "FeatureCollection",
   features: [
     {
       type: "Feature",
       properties: {
-        name: "Downtown Miami probe AOI",
+        name: "Lower Manhattan probe AOI",
       },
       geometry: {
         type: "Polygon",
         coordinates: [
           [
-            [-80.1984, 25.7672],
-            [-80.1868, 25.7672],
-            [-80.1868, 25.778],
-            [-80.1984, 25.778],
-            [-80.1984, 25.7672],
+            [-74.017, 40.705],
+            [-74.003, 40.705],
+            [-74.003, 40.718],
+            [-74.017, 40.718],
+            [-74.017, 40.705],
           ],
         ],
       },
@@ -49,7 +49,7 @@ if (!API_KEY) {
 async function runProbe() {
   const dateTime = requestedProbeHour();
   const requestBody = {
-    polygon_aoi: MIAMI_AOI,
+    polygon_aoi: NEW_YORK_AOI,
     date_time: {
       start_date: dateTime.date,
       start_time: dateTime.time,
@@ -59,11 +59,11 @@ async function runProbe() {
     analytic_type: "tcm",
   };
 
-  console.log("Submitting FortyGuard Miami heatmap probe...");
+  console.log("Submitting FortyGuard New York heatmap probe...");
   console.log(
     JSON.stringify(
       {
-        aoi: MIAMI_AOI.features[0].properties.name,
+        aoi: NEW_YORK_AOI.features[0].properties.name,
         date_time: requestBody.date_time,
         granularity_m: requestBody.granularity,
       },
@@ -88,11 +88,11 @@ async function runProbe() {
   const completed = await pollActivity(activityId);
 
   await mkdir("artifacts", { recursive: true });
-  const outputPath = "artifacts/fortyguard-miami-probe.json";
+  const outputPath = "artifacts/fortyguard-new-york-probe.json";
   await writeFile(outputPath, `${JSON.stringify(completed, null, 2)}\n`, "utf8");
 
   const summary = summarizeResult(completed);
-  console.log("\nMiami probe completed:");
+  console.log("\nNew York probe completed:");
   console.log(JSON.stringify(summary, null, 2));
   console.log(`Raw response saved to ${outputPath}`);
 }
@@ -106,7 +106,7 @@ function requestedProbeHour() {
   ) {
     return { date, time };
   }
-  return previousCompletedHourInMiami();
+  return previousCompletedHourInNewYork();
 }
 
 async function pollActivity(activityId) {
@@ -180,7 +180,7 @@ function summarizeResult(response) {
   ].sort();
 
   const bboxAreaKm2 = approximateAoiAreaKm2(
-    MIAMI_AOI.features[0].geometry.coordinates[0],
+    NEW_YORK_AOI.features[0].geometry.coordinates[0],
   );
 
   return {
@@ -199,7 +199,7 @@ function summarizeResult(response) {
   };
 }
 
-function previousCompletedHourInMiami(now = new Date()) {
+function previousCompletedHourInNewYork(now = new Date()) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/New_York",

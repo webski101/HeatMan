@@ -34,10 +34,10 @@ test("server-renders the HeatMan delivery rider workspace", async () => {
   assert.match(html, /Compare thermal routes/);
   assert.match(html, /RIDER RISK/);
   assert.match(html, /Arm dispatch alert/);
-  assert.match(html, /Miami thermal route map/);
+  assert.match(html, /New York City thermal route map/);
   assert.match(html, /SIMULATED STARTER/);
-  assert.match(html, /Brickell City Centre/);
-  assert.match(html, /Stephen P\. Clark Government Center/);
+  assert.match(html, /Times Square/);
+  assert.match(html, /Pacific Library/);
   assert.doesNotMatch(html, /codex-preview|Starter Project|react-loading-skeleton/);
 });
 
@@ -64,13 +64,13 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(appSource, /HeatMan agent/);
   assert.match(teamsSource, /Fleet heat command center/);
   assert.match(teamsSource, /Daily fleet exposure/);
-  assert.match(mapSource, /FORTYGUARD \+ OPEN-METEO/);
-  assert.match(mapSource, /FORTYGUARD VERIFIED 2025 FIELD/);
+  assert.match(mapSource, /FORTYGUARD NATIVE/);
+  assert.match(mapSource, /\[0, 1, 2\]/);
   assert.match(mapSource, /temperature and route geometry preserved/);
-  assert.match(appSource, /Use verified Aug 20, 2025 demo/);
-  assert.match(appSource, /async function loadVerifiedEvent/);
-  assert.match(appSource, /Historical data was not loaded automatically/);
-  assert.match(appSource, /Forecast controls are disabled for the historical 2025 field/);
+  assert.match(appSource, /native FortyGuard \+\$\{hours\}h New York forecast/);
+  assert.match(appSource, /fetchFortyGuardHeat\(aoi, targetDateTime\)/);
+  assert.doesNotMatch(appSource, /Open-Meteo|fetchOpenMeteoForecast/);
+  assert.doesNotMatch(mapSource, /OPEN-METEO/);
   assert.doesNotMatch(mapSource, /SIMULATED \+\$\{forecastHours\}H HEAT MODEL/);
   assert.doesNotMatch(exampleEnv, /api-key:\s*[A-Za-z0-9]/i);
 });

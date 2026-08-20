@@ -7,8 +7,8 @@ import type {
   TravelMode,
 } from "./types";
 
-export const DEFAULT_ORIGIN: Coordinate = [-80.1937, 25.7743];
-export const DEFAULT_DESTINATION: Coordinate = [-80.1848, 25.7913];
+export const DEFAULT_ORIGIN: Coordinate = [-73.9855, 40.758];
+export const DEFAULT_DESTINATION: Coordinate = [-73.9754, 40.6826];
 
 export const DEFAULT_PROFILE: RiderProfile = {
   acclimatized: true,
@@ -18,19 +18,19 @@ export const DEFAULT_PROFILE: RiderProfile = {
 };
 
 export function createDemoHeatPoints(): HeatPoint[] {
-  const west = -80.201;
-  const south = 25.765;
-  const columns = 10;
+  const west = -74.01;
+  const south = 40.67;
+  const columns = 12;
   const rows = 12;
-  const longitudeStep = 0.0021;
-  const latitudeStep = 0.0021;
+  const longitudeStep = 0.005;
+  const latitudeStep = 0.009;
   const points: HeatPoint[] = [];
 
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
-      const riverCooling = row < 5 && column > 2 ? -1.6 : 0;
-      const parkCooling = column > 5 && row > 7 ? -2.1 : 0;
-      const asphaltHeat = column < 4 && row > 5 ? 2.7 : 0;
+      const riverCooling = column < 2 || column > 9 ? -1.6 : 0;
+      const parkCooling = column > 5 && row > 8 ? -2.1 : 0;
+      const asphaltHeat = column > 2 && column < 7 && row > 4 ? 2.7 : 0;
       const variation = Math.sin(row * 1.7 + column * 0.9) * 1.1;
       points.push({
         id: `demo-${row}-${column}`,
@@ -62,28 +62,29 @@ export function createDemoAnalysis(
       name: "Cool corridor",
       coordinates: [
         DEFAULT_ORIGIN,
-        [-80.1942, 25.779],
-        [-80.1904, 25.7836],
-        [-80.1882, 25.7879],
+        [-73.9818, 40.7501],
+        [-73.9904, 40.7286],
+        [-73.9918, 40.7134],
+        [-73.9867, 40.7006],
         DEFAULT_DESTINATION,
       ] as Coordinate[],
-      durationSeconds: 17.8 * 60 * speedFactor,
-      distanceMeters: 3_260,
+      durationSeconds: 37.8 * 60 * speedFactor,
+      distanceMeters: 10_420,
       steps: [
         {
-          instruction: "Use the shaded northbound corridor",
-          distanceM: 1_050,
-          durationS: 330 * speedFactor,
+          instruction: "Use the protected southbound corridor",
+          distanceM: 3_150,
+          durationS: 690 * speedFactor,
         },
         {
-          instruction: "Cross west of the exposed arterial",
-          distanceM: 980,
-          durationS: 310 * speedFactor,
+          instruction: "Cross by the lower-heat bridge approach",
+          distanceM: 3_220,
+          durationS: 720 * speedFactor,
         },
         {
-          instruction: "Continue through the park edge",
-          distanceM: 1_230,
-          durationS: 428 * speedFactor,
+          instruction: "Continue toward Downtown Brooklyn",
+          distanceM: 4_050,
+          durationS: 858 * speedFactor,
         },
       ],
     },
@@ -92,52 +93,54 @@ export function createDemoAnalysis(
       name: "Fastest",
       coordinates: [
         DEFAULT_ORIGIN,
-        [-80.1905, 25.7792],
-        [-80.1876, 25.7854],
+        [-73.9875, 40.7398],
+        [-73.995, 40.718],
+        [-73.9884, 40.6977],
         DEFAULT_DESTINATION,
       ] as Coordinate[],
-      durationSeconds: 14.4 * 60 * speedFactor,
-      distanceMeters: 2_910,
+      durationSeconds: 34.4 * 60 * speedFactor,
+      distanceMeters: 9_780,
       steps: [
         {
-          instruction: "Take the direct northbound arterial",
-          distanceM: 1_740,
-          durationS: 500 * speedFactor,
+          instruction: "Take the direct Broadway corridor",
+          distanceM: 5_340,
+          durationS: 1_040 * speedFactor,
         },
         {
           instruction: "Continue to the delivery stop",
-          distanceM: 1_170,
-          durationS: 364 * speedFactor,
+          distanceM: 4_440,
+          durationS: 1_024 * speedFactor,
         },
       ],
     },
     {
-      id: "bay-shade",
-      name: "Bay shade",
+      id: "river-shade",
+      name: "River shade",
       coordinates: [
         DEFAULT_ORIGIN,
-        [-80.1963, 25.7795],
-        [-80.1948, 25.7858],
-        [-80.1898, 25.7906],
+        [-74.0047, 40.7415],
+        [-74.0101, 40.7185],
+        [-74.0032, 40.7032],
+        [-73.9902, 40.6915],
         DEFAULT_DESTINATION,
       ] as Coordinate[],
-      durationSeconds: 19.6 * 60 * speedFactor,
-      distanceMeters: 3_640,
+      durationSeconds: 42.6 * 60 * speedFactor,
+      distanceMeters: 11_460,
       steps: [
         {
-          instruction: "Move toward the river cooling corridor",
-          distanceM: 1_250,
-          durationS: 390 * speedFactor,
+          instruction: "Move toward the Hudson cooling corridor",
+          distanceM: 3_650,
+          durationS: 780 * speedFactor,
         },
         {
-          instruction: "Follow the shaded bayfront approach",
-          distanceM: 1_430,
-          durationS: 450 * speedFactor,
+          instruction: "Follow the shaded waterfront approach",
+          distanceM: 4_210,
+          durationS: 940 * speedFactor,
         },
         {
           instruction: "Turn inland for the final stop",
-          distanceM: 960,
-          durationS: 336 * speedFactor,
+          distanceM: 3_600,
+          durationS: 836 * speedFactor,
         },
       ],
     },
@@ -161,15 +164,15 @@ export function createDemoAnalysis(
 export const COOLING_STOPS = [
   {
     id: "stop-1",
-    name: "Bayfront shade stop",
-    coordinate: [-80.1904, 25.7836] as Coordinate,
+    name: "Bryant Park shade stop",
+    coordinate: [-73.9832, 40.7536] as Coordinate,
     type: "shade",
     note: "Covered seating and bottle refill",
   },
   {
     id: "stop-2",
-    name: "Government Center cooling point",
-    coordinate: [-80.1951, 25.7758] as Coordinate,
+    name: "Pacific Library indoor stop",
+    coordinate: [-73.9784, 40.6862] as Coordinate,
     type: "indoor",
     note: "Air-conditioned public lobby",
   },

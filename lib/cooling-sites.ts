@@ -1,47 +1,44 @@
 import type { CoolingSite, Coordinate } from "./types";
 
-const SOURCE_URL =
-  "https://www.miamidade.gov/initiative/weather-ready/extreme-heat/cooling-sites.page";
-
-// A focused subset of Miami-Dade's official cooling-site directory for the
-// Downtown/Brickell launch area. Names, addresses and hours mirror the county
-// directory; coordinates place the official addresses on the route map.
-export const MIAMI_COOLING_SITES: CoolingSite[] = [
+// Public, air-conditioned library options along the Midtown Manhattan to
+// Downtown Brooklyn launch corridor. Opening hours can change, so riders are
+// sent to each library's official page before relying on a stop.
+export const NYC_COOLING_SITES: CoolingSite[] = [
   {
-    id: "stephen-p-clark",
-    name: "Stephen P. Clark Government Center",
-    address: "111 NW 1st Street, Miami, FL 33132",
-    hours: "Daily, 6:00 AM–8:00 PM",
-    type: "Government building",
-    coordinate: [-80.1961, 25.7751],
-    sourceUrl: SOURCE_URL,
+    id: "snfl",
+    name: "Stavros Niarchos Foundation Library",
+    address: "455 Fifth Avenue, New York, NY 10016",
+    hours: "Check official page for today's hours",
+    type: "Public library · indoor cooling option",
+    coordinate: [-73.9816, 40.7519],
+    sourceUrl: "https://www.nypl.org/locations/snfl/",
   },
   {
-    id: "main-library",
-    name: "Main Library",
-    address: "101 West Flagler Street, Miami, FL 33130",
-    hours: "Mon–Sat, 9:30 AM–6:00 PM; closed Sunday",
-    type: "Public library",
-    coordinate: [-80.1965, 25.774],
-    sourceUrl: SOURCE_URL,
+    id: "new-amsterdam-library",
+    name: "New Amsterdam Library",
+    address: "9 Murray Street, New York, NY 10007",
+    hours: "Check official page for today's hours",
+    type: "Public library · indoor cooling option",
+    coordinate: [-74.0087, 40.7134],
+    sourceUrl: "https://www.nypl.org/locations/new-amsterdam",
   },
   {
-    id: "camillus-health",
-    name: "Camillus Health Concern",
-    address: "336 NW 5th Street, Miami, FL 33128",
-    hours: "Mon/Fri 7:00 AM–5:00 PM; Tue/Thu 8:00 AM–5:00 PM",
-    type: "Health clinic",
-    coordinate: [-80.201, 25.779],
-    sourceUrl: SOURCE_URL,
+    id: "pacific-library",
+    name: "Pacific Library",
+    address: "25 Fourth Avenue, Brooklyn, NY 11217",
+    hours: "Check official page for today's hours",
+    type: "Public library · indoor cooling option",
+    coordinate: [-73.9784, 40.6862],
+    sourceUrl: "https://www.bklynlibrary.org/locations/pacific",
   },
   {
-    id: "jose-marti-park",
-    name: "Jose Marti Park",
-    address: "362 SW 4th Street, Miami, FL 33130",
-    hours: "Mon–Fri 9:00 AM–9:00 PM; Sat 9:00 AM–4:30 PM",
-    type: "City park",
-    coordinate: [-80.2025, 25.7695],
-    sourceUrl: SOURCE_URL,
+    id: "brooklyn-central-library",
+    name: "Brooklyn Public Library — Central",
+    address: "10 Grand Army Plaza, Brooklyn, NY 11238",
+    hours: "Check official page for today's hours",
+    type: "Public library · indoor cooling option",
+    coordinate: [-73.9708, 40.6725],
+    sourceUrl: "https://www.bklynlibrary.org/locations/central",
   },
 ];
 
@@ -49,7 +46,7 @@ export function nearestCoolingSites(
   coordinate: Coordinate,
   limit = 2,
 ): CoolingSite[] {
-  return [...MIAMI_COOLING_SITES]
+  return [...NYC_COOLING_SITES]
     .sort(
       (a, b) =>
         squaredDistance(a.coordinate, coordinate) -

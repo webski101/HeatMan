@@ -42,7 +42,7 @@ export interface RouteAnalysis {
   candidates: RouteCandidate[];
   recommendedRouteId: string;
   generatedAt: string;
-  dataMode: "demo" | "live" | "verified" | "forecast";
+  dataMode: "demo" | "live" | "forecast";
 }
 
 export interface CoolingSite {

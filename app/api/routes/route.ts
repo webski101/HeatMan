@@ -28,7 +28,7 @@ export async function POST(request: Request) {
         configured: false,
         source: "demo",
         message:
-          "OpenRouteService is not configured. HeatMan is using seeded Miami route alternatives.",
+          "OpenRouteService is not configured. HeatMan is using seeded New York route alternatives.",
       },
       { status: 200 },
     );

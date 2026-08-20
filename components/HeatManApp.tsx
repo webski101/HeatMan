@@ -7,7 +7,7 @@ OWN-WORLD: Preserve the cobalt operations workbench, ruled panels, thermal map,
 compact measurements, and direct safety language.
 STORY: Compare a delivery leg against the heat field, choose the coolest safe
 route, then leave with a route and protection plan.
-FIRST VIEWPORT: Active delivery setup on the left, Miami heat field in the
+FIRST VIEWPORT: Active delivery setup on the left, New York heat field in the
 center, and rider exposure on the right.
 FORM: Established-world Operate extension; Rider is the default and Teams
 remains available to dispatch.
@@ -46,7 +46,6 @@ import {
   buildBreakPlan,
   chooseCoolestSafeRoute,
   scoreRoute,
-  shiftHeatPoints,
 } from "@/lib/thermal";
 import type {
   Coordinate,
@@ -63,21 +62,10 @@ type AgentMessage = {
   action?: string;
 };
 
-type ForecastReading = {
-  temperatureC: number;
-  relativeHumidity: number;
-  deltaC: number;
-};
-
-const forecastCache = new Map<
-  string,
-  ForecastReading & { expiresAt: number }
->();
-
 const INITIAL_AGENT_MESSAGE: AgentMessage = {
   id: "agent-intro",
   role: "agent",
-  text: "The starter view uses a labeled simulated field. Enter two Miami stops for live routing, then refresh heat to request FortyGuard tiles.",
+  text: "The starter view uses a labeled New York simulation. Enter two NYC stops for live routing, then refresh heat to request current FortyGuard tiles.",
   action: "Selected Cool corridor",
 };
 
@@ -92,13 +80,13 @@ export function HeatManApp() {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [forecastFeedback, setForecastFeedback] = useState(
-    "Choose +1h or +3h for a live forecast.",
+    "Load current FortyGuard heat to unlock +1h and +2h forecasts.",
   );
   const [pickupAddress, setPickupAddress] = useState(
-    "Brickell City Centre, Miami, FL",
+    "Times Square, Manhattan, NY",
   );
   const [dropoffAddress, setDropoffAddress] = useState(
-    "Adrienne Arsht Center, Miami, FL",
+    "Barclays Center, Brooklyn, NY",
   );
   const [originCoordinate, setOriginCoordinate] =
     useState<Coordinate>(DEFAULT_ORIGIN);
@@ -115,14 +103,18 @@ export function HeatManApp() {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [heatState, setHeatState] = useState<
-    "demo" | "loading" | "live" | "verified" | "forecast" | "error"
+    "demo" | "loading" | "live" | "forecast" | "error"
   >("demo");
   const [baseHeatMode, setBaseHeatMode] = useState<
-    "demo" | "live" | "verified"
+    "demo" | "live"
   >("demo");
   const [currentHeatUnavailable, setCurrentHeatUnavailable] = useState(false);
   const [heatLabel, setHeatLabel] = useState("Simulated launch field");
   const [baseHeatLabel, setBaseHeatLabel] = useState("Simulated launch field");
+  const [baseHeatDateTime, setBaseHeatDateTime] = useState<{
+    date: string;
+    time: string;
+  } | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([
     INITIAL_AGENT_MESSAGE,
   ]);
@@ -130,7 +122,7 @@ export function HeatManApp() {
   const [crewAlertArmed, setCrewAlertArmed] = useState(false);
   const [plannerError, setPlannerError] = useState("");
   const [plannerStatus, setPlannerStatus] = useState(
-    "Enter two Miami stops to compare live route alternatives.",
+    "Enter two New York City stops to compare live route alternatives.",
   );
   const coolingSites = useMemo(
     () => nearestCoolingSites(destinationCoordinate),
@@ -170,7 +162,7 @@ export function HeatManApp() {
       let nextOrigin = originCoordinate;
       let nextDestination = destinationCoordinate;
       if (resolveStops) {
-        setPlannerStatus("Finding both Miami addresses…");
+        setPlannerStatus("Finding both New York City addresses…");
         const [originMatch, destinationMatch] = await Promise.all([
           geocodeAddress(pickupAddress),
           geocodeAddress(dropoffAddress),
@@ -215,7 +207,7 @@ export function HeatManApp() {
           recommendedRouteId: recommended.id,
           generatedAt: new Date().toISOString(),
           dataMode:
-            heatState === "live" || heatState === "verified" || heatState === "forecast"
+            heatState === "live" || heatState === "forecast"
               ? heatState
               : "demo",
         };
@@ -252,7 +244,7 @@ export function HeatManApp() {
     setCurrentHeatUnavailable(false);
     setHeatState("loading");
     try {
-      const dateTime = previousCompletedHourInMiami();
+      const dateTime = previousCompletedHourInNewYork();
       const aoi = createRouteAoi(analysis.candidates);
       const realPoints = await fetchFortyGuardHeat(aoi, dateTime);
       if (!realPoints.length) {
@@ -260,8 +252,9 @@ export function HeatManApp() {
         setBaseHeatPoints(initialHeat);
         setBaseHeatMode("demo");
         setBaseHeatLabel("Simulated launch field");
+        setBaseHeatDateTime(null);
         setHeatLabel(
-          `Current FortyGuard field unavailable · ${dateTime.date} ${dateTime.time} Miami time`,
+          `Current FortyGuard field unavailable · ${dateTime.date} ${dateTime.time} New York time`,
         );
         setForecastHours(0);
         setForecastState("idle");
@@ -272,20 +265,21 @@ export function HeatManApp() {
         setCurrentHeatUnavailable(true);
         rescoreWithHeat(initialHeat, "demo");
         appendAgent(
-          "Current FortyGuard tiles are unavailable for this hour. I kept historical data off and restored the clearly labeled simulated starter field.",
-          "Choose the verified 2025 demo explicitly",
+          "Current FortyGuard tiles are unavailable for this New York hour. I restored the clearly labeled simulated starter field.",
+          "Retry current New York heat",
         );
         return;
       }
       setHeatPoints(realPoints);
       setBaseHeatPoints(realPoints);
       setBaseHeatMode("live");
-      const nextLabel = `FortyGuard ${dateTime.date} ${dateTime.time} Miami time`;
+      setBaseHeatDateTime(dateTime);
+      const nextLabel = `FortyGuard live · ${dateTime.date} ${dateTime.time} New York time`;
       setHeatLabel(nextLabel);
       setBaseHeatLabel(nextLabel);
       setForecastHours(0);
       setForecastState("idle");
-      setForecastFeedback("Choose +1h or +3h for a live forecast.");
+      setForecastFeedback("Choose +1h or +2h for a native FortyGuard forecast.");
       const recommended = rescoreWithHeat(realPoints, "live");
       setHeatState("live");
       appendAgent(
@@ -298,46 +292,6 @@ export function HeatManApp() {
         error instanceof Error
           ? `${error.message} The active field was not replaced.`
           : "The current heat request failed. The active field was not replaced.",
-      );
-    }
-  }
-
-  async function loadVerifiedEvent() {
-    setCurrentHeatUnavailable(false);
-    setHeatState("loading");
-    try {
-      const aoi = createRouteAoi(analysis.candidates);
-      const verifiedPoints = await fetchFortyGuardHeat(aoi, {
-        date: "2025-08-20",
-        time: "13:00",
-      });
-      if (!verifiedPoints.length) {
-        throw new Error("The verified August 2025 field returned no route-area tiles.");
-      }
-      const verifiedLabel = "FortyGuard verified historical event · Aug 20, 2025 1:00 PM";
-      setHeatPoints(verifiedPoints);
-      setBaseHeatPoints(verifiedPoints);
-      setBaseHeatMode("verified");
-      setHeatLabel(verifiedLabel);
-      setBaseHeatLabel(verifiedLabel);
-      setForecastHours(0);
-      setForecastState("idle");
-      setForecastFeedback(
-        "Historical 2025 field selected. +1h and +3h are disabled because this is not current data.",
-      );
-      const recommended = rescoreWithHeat(verifiedPoints, "verified");
-      setHeatState("verified");
-      appendAgent(
-        `You selected the verified FortyGuard Miami heat event from August 20, 2025. I rescored every route and selected ${recommended.name}.`,
-        "Verified historical demo applied",
-      );
-    } catch (error) {
-      setHeatState("error");
-      setCurrentHeatUnavailable(true);
-      appendAgent(
-        error instanceof Error
-          ? error.message
-          : "The verified historical field could not be loaded.",
       );
     }
   }
@@ -358,32 +312,35 @@ export function HeatManApp() {
       rescoreWithHeat(baseHeatPoints, baseHeatMode);
       return;
     }
-    if (baseHeatMode === "verified" || currentHeatUnavailable) {
+    if (baseHeatMode !== "live" || !baseHeatDateTime || currentHeatUnavailable) {
       setForecastState("error");
       setForecastFeedback(
-        baseHeatMode === "verified"
-          ? "Forecast controls are disabled for the historical 2025 field. Refresh current heat first."
-          : "Forecast routing needs a current FortyGuard field. Refresh current heat first.",
+        "Forecast routing needs a current FortyGuard field. Refresh current heat first.",
       );
       return;
     }
     setForecastState("loading");
-    setForecastFeedback(`Loading the live +${hours}h Miami forecast…`);
-    const midpoint = selectedRoute.coordinates[
-      Math.floor(selectedRoute.coordinates.length / 2)
-    ] ?? destinationCoordinate;
+    setForecastFeedback(`Loading the native FortyGuard +${hours}h New York forecast…`);
     try {
-      const payload = await fetchOpenMeteoForecast(midpoint, hours);
-      const projected = shiftHeatPoints(baseHeatPoints, Number(payload.deltaC));
+      const targetDateTime = addHoursToLocalDateTime(baseHeatDateTime, hours);
+      const aoi = createRouteAoi(analysis.candidates);
+      const projected = await fetchFortyGuardHeat(aoi, targetDateTime);
+      if (!projected.length) {
+        throw new Error(`FortyGuard returned no +${hours}h forecast tiles.`);
+      }
+      const temperatures = projected.map((point) => point.temperatureC);
+      const average =
+        temperatures.reduce((total, temperature) => total + temperature, 0) /
+        temperatures.length;
       setForecastHours(hours);
       setHeatPoints(projected);
       setHeatState("forecast");
       setForecastState("success");
       setForecastFeedback(
-        `Forecast loaded: ${payload.temperatureC}°C air, ${payload.relativeHumidity}% humidity.`,
+        `FortyGuard +${hours}h loaded: ${average.toFixed(1)}°C average across ${projected.length} tiles.`,
       );
       setHeatLabel(
-        `Open-Meteo +${hours}h · ${payload.temperatureC}°C air · ${payload.relativeHumidity}% RH · ${baseHeatMode === "demo" ? "simulated spatial baseline" : "current FortyGuard spatial baseline"}`,
+        `FortyGuard +${hours}h forecast · ${targetDateTime.date} ${targetDateTime.time} New York time`,
       );
       rescoreWithHeat(projected, "forecast");
     } catch (error) {
@@ -547,16 +504,14 @@ export function HeatManApp() {
             {currentHeatUnavailable
               ? "CURRENT HEAT UNAVAILABLE"
               : heatState === "live"
-              ? "FORTYGUARD LIVE"
-              : heatState === "verified"
-                ? "FORTYGUARD VERIFIED"
+                ? "FORTYGUARD LIVE"
                 : heatState === "forecast"
-                  ? "OPEN-METEO FORECAST"
-              : heatState === "loading"
-                ? "FETCHING HEAT"
-                : heatState === "error"
-                  ? "LAST FIELD"
-                  : "SIMULATED STARTER"}
+                  ? "FORTYGUARD FORECAST"
+                  : heatState === "loading"
+                    ? "FETCHING HEAT"
+                    : heatState === "error"
+                      ? "LAST FIELD"
+                      : "SIMULATED STARTER"}
           </span>
           <button
             className="icon-action"
@@ -586,12 +541,11 @@ export function HeatManApp() {
             <aside className="heat-availability-banner" role="status">
               <CircleAlert aria-hidden="true" size={18} />
               <span>
-                <strong>Current FortyGuard heat is unavailable.</strong>
-                No historical data was loaded automatically. You can use the
-                verified Miami event only as a clearly labeled demo.
+                <strong>Current FortyGuard New York heat is unavailable.</strong>
+                The simulated starter field remains clearly labeled while you retry.
               </span>
-              <button type="button" onClick={() => void loadVerifiedEvent()}>
-                Use verified Aug 20, 2025 demo
+              <button type="button" onClick={() => void refreshHeat()}>
+                Retry live New York heat
               </button>
             </aside>
           )}
@@ -743,15 +697,12 @@ export function HeatManApp() {
           forecastState={forecastState}
           forecastFeedback={forecastFeedback}
           forecastDisabledReason={
-            baseHeatMode === "verified"
-              ? "Forecast controls are disabled for the historical 2025 field."
-              : currentHeatUnavailable
-                ? "Forecast routing needs a current FortyGuard field."
-                : undefined
+            baseHeatMode !== "live" || currentHeatUnavailable
+              ? "Load current FortyGuard heat to unlock forecasts."
+              : undefined
           }
           coolingSites={coolingSites}
           dataLabel={heatLabel}
-          baseHeatMode={baseHeatMode}
         />
 
         <aside className="risk-panel">
@@ -905,67 +856,13 @@ export function HeatManApp() {
         <p>
           <span>HeatMan MVP</span>
           <span>
-            Miami · {surface === "teams" ? "fleet operations demo" : "rider D-204"}
+            New York City · {surface === "teams" ? "fleet operations demo" : "rider D-204"}
           </span>
           <span>Thermal score is decision support—not medical advice.</span>
         </p>
       </footer>
     </div>
   );
-}
-
-async function fetchOpenMeteoForecast(
-  coordinate: Coordinate,
-  hours: number,
-): Promise<ForecastReading> {
-  const cacheKey = `${coordinate[0].toFixed(3)}:${coordinate[1].toFixed(3)}:${hours}`;
-  const cached = forecastCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached;
-
-  const params = new URLSearchParams({
-    latitude: String(coordinate[1]),
-    longitude: String(coordinate[0]),
-    current: "temperature_2m,relative_humidity_2m",
-    hourly: "temperature_2m,relative_humidity_2m",
-    temperature_unit: "celsius",
-    timezone: "America/New_York",
-    timeformat: "unixtime",
-    forecast_hours: "12",
-  });
-  const response = await fetch(
-    `https://api.open-meteo.com/v1/forecast?${params}`,
-  );
-  const payload = await response.json().catch(() => null);
-  if (response.status === 429) {
-    throw new Error("The forecast service is busy. Wait one minute and try again.");
-  }
-  if (!response.ok || !payload?.current || !Array.isArray(payload?.hourly?.time)) {
-    throw new Error(payload?.reason ?? "The live forecast is unavailable.");
-  }
-
-  const targetTime = Date.now() / 1000 + hours * 3600;
-  const times: number[] = payload.hourly.time;
-  let index = times.findIndex((time) => time >= targetTime);
-  if (index < 0) index = times.length - 1;
-  const temperatureC = Number(payload.hourly.temperature_2m?.[index]);
-  const currentTemperatureC = Number(payload.current.temperature_2m);
-  const relativeHumidity = Number(payload.hourly.relative_humidity_2m?.[index]);
-  if (
-    !Number.isFinite(temperatureC) ||
-    !Number.isFinite(currentTemperatureC) ||
-    !Number.isFinite(relativeHumidity)
-  ) {
-    throw new Error("The forecast response was incomplete. Please try again.");
-  }
-
-  const reading = {
-    temperatureC,
-    relativeHumidity,
-    deltaC: Number((temperatureC - currentTemperatureC).toFixed(1)),
-    expiresAt: Date.now() + 10 * 60 * 1000,
-  };
-  forecastCache.set(cacheKey, reading);
-  return reading;
 }
 
 async function geocodeAddress(text: string): Promise<{
@@ -979,7 +876,7 @@ async function geocodeAddress(text: string): Promise<{
   });
   const payload = await response.json();
   if (!response.ok || payload.error || !payload.matches?.[0]) {
-    throw new Error(payload.message ?? `Could not find “${text}” in Miami.`);
+    throw new Error(payload.message ?? `Could not find “${text}” in New York City.`);
   }
   return payload.matches[0];
 }
@@ -998,7 +895,7 @@ function createRouteAoi(routes: RouteCandidate[]) {
     features: [
       {
         type: "Feature",
-        properties: { name: "HeatMan active Miami route corridor" },
+        properties: { name: "HeatMan active New York route corridor" },
         geometry: {
           type: "Polygon",
           coordinates: [
@@ -1034,7 +931,20 @@ async function fetchFortyGuardHeat(
       analytic_type: "tcm",
     }),
   });
-  const payload = await response.json();
+  const responseText = await response.text();
+  let payload: {
+    error?: boolean;
+    message?: string;
+    configured?: boolean;
+    data?: { activity_id?: string };
+  } = {};
+  try {
+    payload = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    throw new Error(
+      `FortyGuard returned an unreadable response (${response.status}).`,
+    );
+  }
   if (!response.ok || payload.error) {
     throw new Error(payload.message ?? "The FortyGuard heat request was rejected.");
   }
@@ -1070,7 +980,7 @@ async function pollFortyGuard(activityId: string) {
   throw new Error("FortyGuard did not complete within three minutes.");
 }
 
-function previousCompletedHourInMiami(now = new Date()) {
+function previousCompletedHourInNewYork(now = new Date()) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/New_York",
@@ -1087,5 +997,18 @@ function previousCompletedHourInMiami(now = new Date()) {
   return {
     date: `${parts.year}-${parts.month}-${parts.day}`,
     time: `${parts.hour}:00`,
+  };
+}
+
+function addHoursToLocalDateTime(
+  dateTime: { date: string; time: string },
+  hours: number,
+) {
+  const [year, month, day] = dateTime.date.split("-").map(Number);
+  const [hour, minute] = dateTime.time.split(":").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day, hour + hours, minute));
+  return {
+    date: shifted.toISOString().slice(0, 10),
+    time: shifted.toISOString().slice(11, 16),
   };
 }
