@@ -81,6 +81,7 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(appSource, /OrganizationSwitcher/);
   assert.match(layoutSource, /ClerkProvider/);
   assert.match(proxySource, /clerkMiddleware/);
+  assert.match(proxySource, /frontendApiProxy:\s*\{\s*enabled:\s*true\s*\}/);
   assert.match(teamsSource, /Fleet heat command center/);
   assert.match(teamsSource, /Daily fleet exposure/);
   assert.match(teamsSource, /heatman-new-york-fleet-exposure\.csv/);
