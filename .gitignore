@@ -9,3 +9,6 @@ dist/
 .playwright-cli/
 *.tsbuildinfo
 .DS_Store
+
+.vercel
+.env*
