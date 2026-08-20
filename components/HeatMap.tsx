@@ -5,6 +5,16 @@ import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import { Crosshair, MapPin } from "lucide-react";
 import type { CoolingSite, HeatPoint, RouteCandidate } from "@/lib/types";
 
+// MapLibre's style parser does not currently accept the OKLCH values used by
+// HeatMan's CSS tokens. Keep equivalent map paint colors in a supported format.
+const MAP_PAINT_COLORS = {
+  accent: "#0667d8",
+  muted: "#697381",
+  cool: "#3f9f72",
+  warm: "#c88a2a",
+  hot: "#d34f35",
+} as const;
+
 interface HeatMapProps {
   routes: RouteCandidate[];
   selectedRouteId: string;
@@ -114,18 +124,24 @@ export function HeatMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     let cancelled = false;
-    let didLoad = false;
+    let hasFailed = false;
+    let readinessTimer: number | undefined;
+
+    function failMap() {
+      if (cancelled || hasFailed) return;
+      hasFailed = true;
+      if (readinessTimer) window.clearTimeout(readinessTimer);
+      const failedMap = mapRef.current;
+      mapRef.current = null;
+      setMapReady(false);
+      setMapFailed(true);
+      failedMap?.remove();
+    }
 
     async function mountMap() {
       try {
         const maplibreModule = await import("maplibre-gl");
         if (cancelled || !containerRef.current) return;
-        const styles = getComputedStyle(document.documentElement);
-        const accent = styles.getPropertyValue("--color-accent").trim();
-        const rule = styles.getPropertyValue("--color-muted").trim();
-        const cool = styles.getPropertyValue("--color-heat-low").trim();
-        const warm = styles.getPropertyValue("--color-heat-warm").trim();
-        const hot = styles.getPropertyValue("--color-heat-high").trim();
 
         const map = new maplibreModule.Map({
           container: containerRef.current,
@@ -135,93 +151,102 @@ export function HeatMap({
           attributionControl: { compact: true },
         });
         mapRef.current = map;
+        readinessTimer = window.setTimeout(failMap, 8_000);
 
-        map.on("error", () => {
-          if (!didLoad && !cancelled) setMapFailed(true);
-        });
+        map.on("error", failMap);
 
         map.on("load", () => {
-          if (cancelled) return;
-          didLoad = true;
-          setMapFailed(false);
-          map.addSource("heatman-heat", {
-            type: "geojson",
-            data: initialHeatGeoJson.current,
-          });
-          map.addLayer({
-            id: "heatman-heat",
-            type: "heatmap",
-            source: "heatman-heat",
-            paint: {
-              "heatmap-weight": ["get", "weight"],
-              "heatmap-intensity": 0.9,
-              "heatmap-radius": 30,
-              "heatmap-opacity": 0.58,
-              "heatmap-color": [
-                "interpolate",
-                ["linear"],
-                ["heatmap-density"],
-                0,
-                "transparent",
-                0.28,
-                cool,
-                0.58,
-                warm,
-                1,
-                hot,
-              ],
-            },
-          });
-          map.addSource("heatman-routes", {
-            type: "geojson",
-            data: initialRouteGeoJson.current,
-          });
-          map.addSource("heatman-cooling", {
-            type: "geojson",
-            data: initialCoolingGeoJson.current,
-          });
-          map.addLayer({
-            id: "heatman-cooling",
-            type: "circle",
-            source: "heatman-cooling",
-            paint: {
-              "circle-radius": 7,
-              "circle-color": cool,
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
-            },
-          });
-          map.addLayer({
-            id: "heatman-routes",
-            type: "line",
-            source: "heatman-routes",
-            layout: { "line-cap": "round", "line-join": "round" },
-            paint: {
-              "line-color": ["case", ["get", "selected"], accent, rule],
-              "line-width": ["case", ["get", "selected"], 6, 3],
-              "line-opacity": ["case", ["get", "selected"], 1, 0.72],
-            },
-          });
-          map.on("click", "heatman-routes", (event) => {
-            const routeId = event.features?.[0]?.properties?.id;
-            if (typeof routeId === "string") selectRouteRef.current(routeId);
-          });
-          map.on("mouseenter", "heatman-routes", () => {
-            map.getCanvas().style.cursor = "pointer";
-          });
-          map.on("mouseleave", "heatman-routes", () => {
-            map.getCanvas().style.cursor = "";
-          });
-          setMapReady(true);
+          if (cancelled || hasFailed) return;
+          try {
+            map.addSource("heatman-heat", {
+              type: "geojson",
+              data: initialHeatGeoJson.current,
+            });
+            map.addLayer({
+              id: "heatman-heat",
+              type: "heatmap",
+              source: "heatman-heat",
+              paint: {
+                "heatmap-weight": ["get", "weight"],
+                "heatmap-intensity": 0.9,
+                "heatmap-radius": 30,
+                "heatmap-opacity": 0.58,
+                "heatmap-color": [
+                  "interpolate",
+                  ["linear"],
+                  ["heatmap-density"],
+                  0,
+                  "transparent",
+                  0.28,
+                  MAP_PAINT_COLORS.cool,
+                  0.58,
+                  MAP_PAINT_COLORS.warm,
+                  1,
+                  MAP_PAINT_COLORS.hot,
+                ],
+              },
+            });
+            map.addSource("heatman-routes", {
+              type: "geojson",
+              data: initialRouteGeoJson.current,
+            });
+            map.addSource("heatman-cooling", {
+              type: "geojson",
+              data: initialCoolingGeoJson.current,
+            });
+            map.addLayer({
+              id: "heatman-cooling",
+              type: "circle",
+              source: "heatman-cooling",
+              paint: {
+                "circle-radius": 7,
+                "circle-color": MAP_PAINT_COLORS.cool,
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#ffffff",
+              },
+            });
+            map.addLayer({
+              id: "heatman-routes",
+              type: "line",
+              source: "heatman-routes",
+              layout: { "line-cap": "round", "line-join": "round" },
+              paint: {
+                "line-color": [
+                  "case",
+                  ["get", "selected"],
+                  MAP_PAINT_COLORS.accent,
+                  MAP_PAINT_COLORS.muted,
+                ],
+                "line-width": ["case", ["get", "selected"], 6, 3],
+                "line-opacity": ["case", ["get", "selected"], 1, 0.72],
+              },
+            });
+            map.on("click", "heatman-routes", (event) => {
+              const routeId = event.features?.[0]?.properties?.id;
+              if (typeof routeId === "string") selectRouteRef.current(routeId);
+            });
+            map.on("mouseenter", "heatman-routes", () => {
+              map.getCanvas().style.cursor = "pointer";
+            });
+            map.on("mouseleave", "heatman-routes", () => {
+              map.getCanvas().style.cursor = "";
+            });
+            if (readinessTimer) window.clearTimeout(readinessTimer);
+            setMapFailed(false);
+            setMapReady(true);
+          } catch {
+            failMap();
+          }
         });
       } catch {
-        if (!cancelled) setMapFailed(true);
+        failMap();
       }
     }
 
     void mountMap();
     return () => {
       cancelled = true;
+      if (readinessTimer) window.clearTimeout(readinessTimer);
       mapRef.current?.remove();
       mapRef.current = null;
     };

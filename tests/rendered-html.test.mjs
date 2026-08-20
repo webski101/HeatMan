@@ -67,6 +67,10 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(mapSource, /FORTYGUARD NATIVE/);
   assert.match(mapSource, /\[0, 1, 2\]/);
   assert.match(mapSource, /temperature and route geometry preserved/);
+  assert.match(mapSource, /const MAP_PAINT_COLORS/);
+  assert.match(mapSource, /map\.on\("error", failMap\)/);
+  assert.match(mapSource, /readinessTimer = window\.setTimeout\(failMap, 8_000\)/);
+  assert.doesNotMatch(mapSource, /getPropertyValue\("--color-heat/);
   assert.match(appSource, /native FortyGuard \+\$\{hours\}h New York forecast/);
   assert.match(appSource, /fetchFortyGuardHeat\(aoi, targetDateTime\)/);
   assert.match(appSource, /FortyGuard \+\$\{hours\}h forecast applied/);
