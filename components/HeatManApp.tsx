@@ -15,6 +15,14 @@ remains available to dispatch.
 
 import { FormEvent, useMemo, useState } from "react";
 import {
+  CreateOrganization,
+  OrganizationSwitcher,
+  SignInButton,
+  UserButton,
+  useOrganization,
+  useUser,
+} from "@clerk/nextjs";
+import {
   BellRing,
   Bike,
   Bot,
@@ -576,6 +584,7 @@ export function HeatManApp() {
           </button>
         </nav>
         <div className="topbar__status">
+          <AccountControls />
           <span
             className={`source-chip source-chip--${currentHeatUnavailable ? "unavailable" : heatState}`}
             aria-live="polite"
@@ -607,7 +616,7 @@ export function HeatManApp() {
       </header>
 
       {surface === "teams" ? (
-        <DispatcherDashboard
+        <TeamsWorkspace
           dataMode={heatState}
           onRiderAction={(riderId, action) => {
             if (riderId === "D-204") {
@@ -945,6 +954,31 @@ export function HeatManApp() {
   );
 }
 
+function AccountControls() {
+  const { isLoaded, isSignedIn } = useUser();
+
+  if (!isLoaded) {
+    return null;
+  }
+
+  if (!isSignedIn) {
+    return (
+      <SignInButton mode="modal">
+        <button type="button" className="account-action">
+          Team sign in
+        </button>
+      </SignInButton>
+    );
+  }
+
+  return (
+    <div className="account-cluster" aria-label="Company account">
+      <OrganizationSwitcher hidePersonal />
+      <UserButton />
+    </div>
+  );
+}
+
 async function geocodeAddress(text: string): Promise<{
   label: string;
   coordinate: Coordinate;
@@ -959,6 +993,71 @@ async function geocodeAddress(text: string): Promise<{
     throw new Error(payload.message ?? `Could not find “${text}” in New York City.`);
   }
   return payload.matches[0];
+}
+
+function TeamsWorkspace({
+  dataMode,
+  onRiderAction,
+}: {
+  dataMode: "demo" | "loading" | "live" | "forecast" | "error";
+  onRiderAction: (riderId: string, action: string) => void;
+}) {
+  const { isLoaded: isUserLoaded, isSignedIn } = useUser();
+  const { isLoaded: isOrganizationLoaded, organization } = useOrganization();
+
+  if (!isUserLoaded || !isOrganizationLoaded) {
+    return (
+      <main className="teams-access-gate" aria-busy="true">
+        <span className="panel-kicker">COMPANY ACCESS</span>
+        <h1>Checking your HeatMan workspace…</h1>
+      </main>
+    );
+  }
+
+  if (!isSignedIn) {
+    return (
+      <main className="teams-access-gate">
+        <span className="panel-kicker">COMPANY ACCESS</span>
+        <h1>Sign in to protect your delivery team.</h1>
+        <p>
+          The Rider workspace stays public. Teams requires a free company
+          account so fleet risk and dispatcher actions remain separated.
+        </p>
+        <SignInButton mode="modal">
+          <button type="button" className="auth-primary">
+            Sign in or create account
+          </button>
+        </SignInButton>
+      </main>
+    );
+  }
+
+  if (!organization) {
+    return (
+      <main className="teams-access-gate teams-access-gate--organization">
+        <div className="teams-access-gate__copy">
+          <span className="panel-kicker">CREATE YOUR COMPANY</span>
+          <h1>Add your delivery organization.</h1>
+          <p>
+            Your organization keeps riders, dispatchers, alerts, and reports in
+            one company workspace. Clerk provides this on its free plan.
+          </p>
+        </div>
+        <CreateOrganization
+          routing="hash"
+          afterCreateOrganizationUrl="/"
+          skipInvitationScreen
+        />
+      </main>
+    );
+  }
+
+  return (
+    <DispatcherDashboard
+      dataMode={dataMode}
+      onRiderAction={onRiderAction}
+    />
+  );
 }
 
 function createRouteAoi(routes: RouteCandidate[]) {

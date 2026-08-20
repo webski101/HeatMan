@@ -140,6 +140,27 @@ a {
   gap: var(--space-xs);
 }
 
+.account-action,
+.auth-primary {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  padding-inline: var(--space-sm);
+  border: var(--rule-thin) solid var(--color-accent);
+  border-radius: var(--radius-xs);
+  background: var(--color-accent);
+  color: white;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.account-cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
 .source-chip {
   display: inline-flex;
   min-height: 2rem;
@@ -1242,6 +1263,71 @@ a {
   padding: var(--space-lg) var(--page-gutter) var(--space-2xl);
 }
 
+.teams-access-gate {
+  display: grid;
+  min-height: calc(100dvh - 7rem);
+  place-content: center;
+  justify-items: start;
+  gap: var(--space-sm);
+  padding: clamp(2rem, 8vw, 7rem) var(--page-gutter);
+  background:
+    linear-gradient(var(--color-rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-rule) 1px, transparent 1px),
+    var(--color-paper);
+  background-size: 5rem 5rem;
+}
+
+.teams-access-gate h1,
+.auth-page h1 {
+  max-width: 14ch;
+  font-size: clamp(2.25rem, 5vw, 4.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.teams-access-gate p,
+.auth-page__intro p {
+  max-width: 58ch;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.teams-access-gate--organization {
+  grid-template-columns: minmax(0, 34rem) minmax(20rem, auto);
+  align-items: center;
+  gap: var(--space-2xl);
+}
+
+.teams-access-gate__copy {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.auth-primary {
+  min-height: var(--control-height);
+  margin-top: var(--space-sm);
+  padding-inline: var(--space-lg);
+}
+
+.auth-page {
+  display: grid;
+  min-height: 100dvh;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 30rem);
+  align-items: center;
+  gap: clamp(2rem, 8vw, 8rem);
+  padding: clamp(2rem, 8vw, 7rem);
+  background:
+    linear-gradient(var(--color-rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-rule) 1px, transparent 1px),
+    var(--color-paper);
+  background-size: 5rem 5rem;
+}
+
+.auth-page__intro {
+  display: grid;
+  gap: var(--space-sm);
+}
+
 .dispatch-heading {
   display: flex;
   align-items: flex-end;
@@ -2026,6 +2112,15 @@ a {
 
   .topbar {
     flex-wrap: wrap;
+  }
+
+  .account-cluster .cl-organizationSwitcherTrigger {
+    max-width: 9rem;
+  }
+
+  .teams-access-gate--organization,
+  .auth-page {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .product-switch {

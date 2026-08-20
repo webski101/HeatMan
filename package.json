@@ -11,11 +11,12 @@
     "build": "vinext build",
     "build:vercel": "next build",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/*.test.mjs",
+    "test": "npm run build && node --env-file-if-exists=.env.local --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "probe:new-york": "node --env-file-if-exists=.env.local scripts/probe-fortyguard.mjs"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.7.9",
     "lucide-react": "0.468.0",
     "maplibre-gl": "^6.4.1",
     "next": "16.2.6",

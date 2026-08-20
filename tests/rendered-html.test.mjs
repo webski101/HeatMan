@@ -9,9 +9,18 @@ async function render(pathname = "/") {
 
   return worker.fetch(
     new Request(`http://localhost${pathname}`, {
-      headers: { accept: "text/html" },
+      headers: {
+        accept: "text/html",
+        // Clerk development instances initialize this cookie during their
+        // first browser handshake. Supplying a marker keeps this render test
+        // focused on HeatMan's public HTML response.
+        cookie: "__clerk_db_jwt=test",
+      },
     }),
     {
+      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
+        process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
       ASSETS: {
         fetch: async () => new Response("Not found", { status: 404 }),
       },
@@ -42,7 +51,7 @@ test("server-renders the HeatMan delivery rider workspace", async () => {
 });
 
 test("keeps secrets server-side, preserves rider mode, and ships the Hallmark system", async () => {
-  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource, mapSource] =
+  const [gitignore, exampleEnv, tokens, packageJson, appSource, teamsSource, mapSource, layoutSource, proxySource] =
     await Promise.all([
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
@@ -51,17 +60,27 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
     readFile(new URL("../components/HeatManApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/DispatcherDashboard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/HeatMap.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
     ]);
 
   assert.match(gitignore, /\.env\.\*/);
   assert.match(exampleEnv, /FORTYGUARD_API_KEY=/);
   assert.match(exampleEnv, /OPENROUTESERVICE_API_KEY=/);
+  assert.match(exampleEnv, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=/);
+  assert.match(exampleEnv, /CLERK_SECRET_KEY=/);
   assert.doesNotMatch(exampleEnv, /MAPBOX_ACCESS_TOKEN=/);
   assert.match(tokens, /Hallmark · macrostructure: Workbench/);
   assert.match(tokens, /--color-accent:/);
   assert.match(packageJson, /"build": "vinext build"/);
+  assert.match(packageJson, /"@clerk\/nextjs"/);
   assert.match(appSource, /ACTIVE DELIVERY/);
   assert.match(appSource, /HeatMan agent/);
+  assert.match(appSource, /Sign in or create account/);
+  assert.match(appSource, /CreateOrganization/);
+  assert.match(appSource, /OrganizationSwitcher/);
+  assert.match(layoutSource, /ClerkProvider/);
+  assert.match(proxySource, /clerkMiddleware/);
   assert.match(teamsSource, /Fleet heat command center/);
   assert.match(teamsSource, /Daily fleet exposure/);
   assert.match(teamsSource, /heatman-new-york-fleet-exposure\.csv/);
