@@ -85,6 +85,7 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(appSource, /isWithinNewYorkRoutingArea/);
   assert.match(layoutSource, /ClerkProvider/);
   assert.match(proxySource, /clerkMiddleware/);
+  assert.match(proxySource, /process\.env\.VERCEL_ENV\s*===\s*"production"/);
   assert.match(proxySource, /frontendApiProxy:\s*\{\s*enabled:\s*true\s*\}/);
   assert.match(teamsSource, /Fleet heat command center/);
   assert.match(teamsSource, /Daily fleet exposure/);
