@@ -13,7 +13,7 @@ FORM: Established-world Operate extension; Rider is the default and Teams
 remains available to dispatch.
 */
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   CreateOrganization,
   OrganizationSwitcher,
@@ -32,6 +32,7 @@ import {
   Droplets,
   Gauge,
   LayoutDashboard,
+  LocateFixed,
   Navigation,
   PersonStanding,
   RefreshCw,
@@ -69,6 +70,21 @@ type AgentMessage = {
   text: string;
   action?: string;
   kind?: "decision" | "selection" | "conversation";
+};
+
+type GpsState = "idle" | "requesting" | "active" | "denied" | "error" | "unsupported";
+
+type GpsPosition = {
+  coordinate: Coordinate;
+  accuracyMeters: number;
+  updatedAt: number;
+};
+
+const NEW_YORK_ROUTING_BOUNDS = {
+  west: -74.2591,
+  south: 40.4774,
+  east: -73.7004,
+  north: 40.9176,
 };
 
 const INITIAL_AGENT_MESSAGE: AgentMessage = {
@@ -127,6 +143,16 @@ export function HeatManApp() {
   const [dropoffAddress, setDropoffAddress] = useState(
     "Barclays Center, Brooklyn, NY",
   );
+  const [gpsState, setGpsState] = useState<GpsState>("idle");
+  const [gpsPosition, setGpsPosition] = useState<GpsPosition | null>(null);
+  const [gpsPickupCoordinate, setGpsPickupCoordinate] =
+    useState<Coordinate | null>(null);
+  const [gpsFeedback, setGpsFeedback] = useState(
+    "Share your location to use a live New York pickup. Location stays on this device for now.",
+  );
+  const gpsWatchIdRef = useRef<number | null>(null);
+  const pickupBeforeGpsRef = useRef(pickupAddress);
+  const originBeforeGpsRef = useRef<Coordinate>(DEFAULT_ORIGIN);
   const [originCoordinate, setOriginCoordinate] =
     useState<Coordinate>(DEFAULT_ORIGIN);
   const [destinationCoordinate, setDestinationCoordinate] =
@@ -168,6 +194,14 @@ export function HeatManApp() {
     [destinationCoordinate],
   );
 
+  useEffect(() => {
+    return () => {
+      if (gpsWatchIdRef.current !== null && "geolocation" in navigator) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      }
+    };
+  }, []);
+
   const selectedRoute =
     analysis.candidates.find((route) => route.id === selectedRouteId) ??
     analysis.candidates[0];
@@ -203,7 +237,12 @@ export function HeatManApp() {
       if (resolveStops) {
         setPlannerStatus("Finding both New York City addresses…");
         const [originMatch, destinationMatch] = await Promise.all([
-          geocodeAddress(pickupAddress),
+          gpsPickupCoordinate
+            ? Promise.resolve({
+                label: "Live GPS pickup",
+                coordinate: gpsPickupCoordinate,
+              })
+            : geocodeAddress(pickupAddress),
           geocodeAddress(dropoffAddress),
         ]);
         nextOrigin = originMatch.coordinate;
@@ -333,6 +372,100 @@ export function HeatManApp() {
           : "The current heat request failed. The active field was not replaced.",
       );
     }
+  }
+
+  function stopGpsTracking(restorePickup = true) {
+    if (gpsWatchIdRef.current !== null && "geolocation" in navigator) {
+      navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+    }
+    gpsWatchIdRef.current = null;
+    setGpsState("idle");
+    setGpsPosition(null);
+    setGpsPickupCoordinate(null);
+    if (restorePickup) {
+      setPickupAddress(pickupBeforeGpsRef.current);
+      setOriginCoordinate(originBeforeGpsRef.current);
+    }
+    setGpsFeedback(
+      "Live GPS is off. Your location is no longer being watched by HeatMan.",
+    );
+  }
+
+  function startGpsTracking() {
+    if (!("geolocation" in navigator)) {
+      setGpsState("unsupported");
+      setGpsFeedback("This browser does not support location sharing.");
+      return;
+    }
+
+    if (gpsWatchIdRef.current !== null) {
+      stopGpsTracking();
+      return;
+    }
+
+    pickupBeforeGpsRef.current = pickupAddress;
+    originBeforeGpsRef.current = originCoordinate;
+    setGpsState("requesting");
+    setGpsFeedback("Waiting for your browser's location permission…");
+
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const coordinate: Coordinate = [
+          position.coords.longitude,
+          position.coords.latitude,
+        ];
+        const accuracyMeters = Math.max(1, Math.round(position.coords.accuracy));
+        const isInsideNewYork = isWithinNewYorkRoutingArea(coordinate);
+
+        setGpsPosition({
+          coordinate,
+          accuracyMeters,
+          updatedAt: position.timestamp,
+        });
+        setGpsState("active");
+
+        if (isInsideNewYork) {
+          setGpsPickupCoordinate(coordinate);
+          setPickupAddress("Live GPS pickup · New York City");
+          setOriginCoordinate(coordinate);
+          setGpsFeedback(
+            `Live GPS connected within ±${accuracyMeters} m and ready as your pickup.`,
+          );
+          return;
+        }
+
+        setGpsPickupCoordinate(null);
+        setPickupAddress(pickupBeforeGpsRef.current);
+        setOriginCoordinate(originBeforeGpsRef.current);
+        setGpsFeedback(
+          `GPS connected within ±${accuracyMeters} m, but you are outside HeatMan's current New York live-routing area.`,
+        );
+      },
+      (error) => {
+        if (gpsWatchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+        }
+        gpsWatchIdRef.current = null;
+        setGpsPickupCoordinate(null);
+        setGpsPosition(null);
+        setGpsState(error.code === error.PERMISSION_DENIED ? "denied" : "error");
+        setGpsFeedback(gpsErrorMessage(error));
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 30_000,
+        timeout: 15_000,
+      },
+    );
+  }
+
+  function updatePickupAddress(value: string) {
+    if (gpsWatchIdRef.current !== null) {
+      stopGpsTracking();
+    }
+    pickupBeforeGpsRef.current = value;
+    setPickupAddress(value);
+    setGpsPickupCoordinate(null);
   }
 
   function changeMode(nextMode: TravelMode) {
@@ -692,7 +825,7 @@ export function HeatManApp() {
               <span>Pickup</span>
               <input
                 value={pickupAddress}
-                onChange={(event) => setPickupAddress(event.target.value)}
+                onChange={(event) => updatePickupAddress(event.target.value)}
                 aria-label="Pickup address"
                 autoComplete="street-address"
               />
@@ -707,6 +840,43 @@ export function HeatManApp() {
               />
             </label>
           </div>
+
+          <section
+            className={`live-gps live-gps--${gpsState}`}
+            aria-label="Live rider GPS"
+          >
+            <button
+              type="button"
+              className="live-gps__button"
+              aria-pressed={gpsState === "active"}
+              onClick={startGpsTracking}
+              disabled={gpsState === "requesting"}
+            >
+              {gpsState === "requesting" ? (
+                <span className="spinner spinner--gps" aria-hidden="true" />
+              ) : (
+                <LocateFixed aria-hidden="true" size={17} />
+              )}
+              {gpsState === "requesting"
+                ? "Locating…"
+                : gpsState === "active"
+                  ? "Stop live GPS"
+                  : "Share live GPS"}
+            </button>
+            <div className="live-gps__status">
+              <span aria-hidden="true" />
+              <p aria-live="polite">{gpsFeedback}</p>
+            </div>
+            {gpsPosition ? (
+              <p className="live-gps__coordinates">
+                {gpsPosition.coordinate[1].toFixed(5)}, {gpsPosition.coordinate[0].toFixed(5)}
+                {" · "}updated {new Date(gpsPosition.updatedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            ) : null}
+          </section>
 
           <button
             className="primary-action"
@@ -977,6 +1147,25 @@ function AccountControls() {
       <UserButton />
     </div>
   );
+}
+
+function isWithinNewYorkRoutingArea([longitude, latitude]: Coordinate) {
+  return (
+    longitude >= NEW_YORK_ROUTING_BOUNDS.west &&
+    longitude <= NEW_YORK_ROUTING_BOUNDS.east &&
+    latitude >= NEW_YORK_ROUTING_BOUNDS.south &&
+    latitude <= NEW_YORK_ROUTING_BOUNDS.north
+  );
+}
+
+function gpsErrorMessage(error: GeolocationPositionError) {
+  if (error.code === error.PERMISSION_DENIED) {
+    return "Location permission was denied. Allow location access in your browser to use live GPS.";
+  }
+  if (error.code === error.TIMEOUT) {
+    return "HeatMan could not get a GPS fix in time. Move near a window and try again.";
+  }
+  return "Your current location could not be read. Check that device location is enabled and try again.";
 }
 
 async function geocodeAddress(text: string): Promise<{

@@ -79,6 +79,10 @@ test("keeps secrets server-side, preserves rider mode, and ships the Hallmark sy
   assert.match(appSource, /Sign in or create account/);
   assert.match(appSource, /CreateOrganization/);
   assert.match(appSource, /OrganizationSwitcher/);
+  assert.match(appSource, /Share live GPS/);
+  assert.match(appSource, /navigator\.geolocation\.watchPosition/);
+  assert.match(appSource, /navigator\.geolocation\.clearWatch/);
+  assert.match(appSource, /isWithinNewYorkRoutingArea/);
   assert.match(layoutSource, /ClerkProvider/);
   assert.match(proxySource, /clerkMiddleware/);
   assert.match(proxySource, /frontendApiProxy:\s*\{\s*enabled:\s*true\s*\}/);

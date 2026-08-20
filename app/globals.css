@@ -399,6 +399,91 @@ a {
   outline-offset: 1px;
 }
 
+.live-gps {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-2);
+}
+
+.live-gps__button {
+  display: inline-flex;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  border: var(--rule-thin) solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  color: var(--color-accent-strong);
+  font-weight: 650;
+}
+
+.live-gps__button:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.live-gps--active {
+  border-color: color-mix(in oklch, var(--color-success) 55%, var(--color-rule));
+  background: color-mix(in oklch, var(--color-success-soft) 68%, var(--color-paper));
+}
+
+.live-gps--active .live-gps__button {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.live-gps__status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-xs);
+}
+
+.live-gps__status > span {
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.35em;
+  border-radius: var(--radius-round);
+  background: var(--color-rule-2);
+}
+
+.live-gps--requesting .live-gps__status > span {
+  background: var(--color-warning);
+}
+
+.live-gps--active .live-gps__status > span {
+  background: var(--color-success);
+  box-shadow: 0 0 0 0.2rem color-mix(in oklch, var(--color-success) 16%, transparent);
+}
+
+.live-gps--denied .live-gps__status > span,
+.live-gps--error .live-gps__status > span,
+.live-gps--unsupported .live-gps__status > span {
+  background: var(--color-danger);
+}
+
+.live-gps__status p,
+.live-gps__coordinates {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.live-gps__coordinates {
+  padding-top: var(--space-xs);
+  border-top: var(--rule-thin) solid var(--color-rule);
+  font-family: var(--font-mono);
+}
+
+.spinner--gps {
+  border-color: color-mix(in oklch, var(--color-accent) 30%, transparent);
+  border-top-color: var(--color-accent);
+}
+
 .primary-action,
 .agent-form button {
   display: inline-flex;
