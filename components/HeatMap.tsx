@@ -120,7 +120,6 @@ export function HeatMap({
       try {
         const maplibreModule = await import("maplibre-gl");
         if (cancelled || !containerRef.current) return;
-        const maplibre = maplibreModule.default;
         const styles = getComputedStyle(document.documentElement);
         const accent = styles.getPropertyValue("--color-accent").trim();
         const rule = styles.getPropertyValue("--color-muted").trim();
@@ -128,7 +127,7 @@ export function HeatMap({
         const warm = styles.getPropertyValue("--color-heat-warm").trim();
         const hot = styles.getPropertyValue("--color-heat-high").trim();
 
-        const map = new maplibre.Map({
+        const map = new maplibreModule.Map({
           container: containerRef.current,
           style: "https://tiles.openfreemap.org/styles/liberty",
           center: [-73.9855, 40.72],
