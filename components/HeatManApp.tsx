@@ -71,6 +71,35 @@ const INITIAL_AGENT_MESSAGE: AgentMessage = {
   kind: "decision",
 };
 
+function explainSafeRoute(
+  recommendedRoute: RouteCandidate,
+  fastestRoute: RouteCandidate,
+  candidates: RouteCandidate[],
+  loadReduction: number,
+) {
+  const allHeatLoadsMatch = candidates.every(
+    (route) => Math.abs(route.heatLoad - recommendedRoute.heatLoad) < 0.05,
+  );
+
+  if (allHeatLoadsMatch) {
+    const tieBreaker =
+      recommendedRoute.id === fastestRoute.id
+        ? "It has the shortest travel time."
+        : "It has the lowest route temperature within the detour limit.";
+    return `${recommendedRoute.name} is recommended because all routes have equal modeled heat exposure. ${tieBreaker}`;
+  }
+
+  if (recommendedRoute.id === fastestRoute.id) {
+    return `${recommendedRoute.name} is recommended because it has the shortest travel time and no alternative provides a lower modeled heat load.`;
+  }
+
+  if (loadReduction === 0) {
+    return `${recommendedRoute.name} is the coolest safe path within 40% of the fastest travel time. Its modeled heat load matches ${fastestRoute.name}, so HeatMan selects it using the lower route temperature.`;
+  }
+
+  return `${recommendedRoute.name} is the coolest safe path within 40% of the fastest travel time. It reduces modeled heat load by ${loadReduction}% compared with ${fastestRoute.name}.`;
+}
+
 export function HeatManApp() {
   const [surface, setSurface] = useState<"rider" | "teams">("rider");
   const initialHeat = useMemo(() => createDemoHeatPoints(), []);
@@ -424,7 +453,12 @@ export function HeatManApp() {
     ) {
       setSelectedRouteId(recommendedRoute.id);
       appendAgent(
-        `${recommendedRoute.name} is the coolest safe path within 40% of the fastest travel time. It reduces modeled heat load by ${loadReduction}% versus the fastest alternative.`,
+        explainSafeRoute(
+          recommendedRoute,
+          fastestRoute,
+          analysis.candidates,
+          loadReduction,
+        ),
         `Selected ${recommendedRoute.name}`,
         "selection",
       );
